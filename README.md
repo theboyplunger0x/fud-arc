@@ -1,44 +1,78 @@
-# FUD on Arc — Hackathon (Lepton Agents)
+# FUD on Arc — agent-driven P2P conviction markets
 
-The agentic version of FUD: a bot turns social trade calls into P2P USDC
-conviction markets on **Arc**, resolved by **GenLayer**, where the **opener
-(creator) earns a cut**. Hits RFB #1 (Autonomous Paying Agents) + #6 (Creator &
-Publisher Monetization).
+> **An agent turns a social trade call into a P2P USDC market on Arc — and the creator who made
+> the call earns a cut.** Built for the **Lepton Agents** hackathon (Arc · Canteen · Circle).
+> Hits **RFB #1 (Autonomous Paying Agents)** + **#6 (Creator & Publisher Monetization)**.
 
-> FUD is live on Base with P2P conviction markets. On Arc we build the
-> stablecoin-native, agent-driven version — and pay the creators who bring the calls.
+FUD is **live on Base** with P2P conviction markets (crypto runs on conviction, but conviction has
+no market — FUD makes opinions liquid). This repo is the **Arc-native, agent-driven** build: a bot
+takes a call like `@fudmarkets open long $100 on <CA> 1h`, opens a stablecoin-native market on Arc,
+matches a counterparty, and settles on-chain — paying the creator who brought the call.
 
-## Status — Step 1: minimal escrow
+---
 
-`src/FudArcMarket.sol` — two-sided P2P market escrow in USDC:
-open → bet LONG/SHORT → operator resolves → winners claim (stake + pro-rata of
-the net losing pool) → opener claims creator cut. Fee 10% of the losing pool,
-opener earns 20% of the fee (the on-chain version of FUD's opener fee).
+## What's built (in the 2-week window)
 
-This proves the Arc mechanics (USDC approvals, escrow, settlement, payout)
-before porting the full lazy/signature-matched P2P flow + GenLayer resolution.
+| Piece | What it is | Where |
+|---|---|---|
+| **Contract** | `FudArcMarket` — minimal two-sided P2P USDC escrow: open → bet LONG/SHORT → resolve → winners claim (stake + pro-rata of the net losing pool) → **opener claims a creator cut**. Pull-based payouts, zero-address guards, 10/10 tests, `forge fmt`-clean, green CI. | [`src/FudArcMarket.sol`](src/FudArcMarket.sol) |
+| **Agent** | The live FUD Telegram bot, pointed at Arc behind a flag: a social call becomes an on-chain market on Arc, auto-resolved at close. | [FUDmarkets `arc-demo` branch](https://github.com/theboyplunger0x/FUDmarkets/tree/arc-demo) |
+| **Frontend** | Next.js dashboard (FUD design system) that reads the markets **on-chain** from Arc and shows the live loop. | [`web/`](web/) |
 
-## Arc testnet
-- RPC: `https://rpc.testnet.arc.network`
-- Chain ID: `5042002`
-- Gas token: **USDC** (native = 18 decimals; ERC-20 interface = 6 decimals at `0x3600…0000`)
-- Explorer: `https://testnet.arcscan.app`
-- Faucet: `https://faucet.circle.com`
+```
+ Telegram call ──▶ agent ──▶ openMarket() on Arc ──▶ counterparty bet()
+                                                          │
+   creator cut ◀── claimCreator() ◀── resolve(outcome) ◀─┘   (settled in USDC, on-chain)
+```
 
-## Dev
+---
 
+## Live on Arc testnet
+
+```
+FudArcMarket:  0x57352a7983E57De691fcEa5d7544CF6a398c0bf1
+Explorer:      https://testnet.arcscan.app/address/0x57352a7983E57De691fcEa5d7544CF6a398c0bf1
+RPC:           https://rpc.testnet.arc.network        Chain ID: 5042002
+Gas token:     USDC  (native = 18 decimals; ERC-20 interface = 6 decimals at 0x3600…0000)
+Faucet:        https://faucet.circle.com
+```
+
+The escrow speaks the **6-decimal ERC-20 USDC** interface for all deposits/payouts (Arc's USDC is
+both the gas token at 18 decimals and a 6-decimal ERC-20 — the contract uses the ERC-20 side).
+
+## Partner & settlement
+
+**GenLayer** is FUD's resolution layer — decentralized LLM-validator consensus that decides market
+outcomes — and **native USDC on Arc/Circle** is the settlement rail. The core carries no third-party
+dependency beyond GenLayer + Arc: in a P2P market the counterparty *is* the liquidity.
+
+---
+
+## Run it
+
+**Contract (Foundry):**
 ```bash
 forge build
 forge test -vvv
+forge script script/Deploy.s.sol --rpc-url arc_testnet --broadcast   # after filling .env
+```
 
-# deploy (after filling .env)
-forge script script/Deploy.s.sol --rpc-url arc_testnet --broadcast
+**Frontend (Next.js):**
+```bash
+cd web
+npm install
+npm run dev      # http://localhost:3000 — reads the live Arc markets
 ```
 
 ## Roadmap
-1. ✅ Minimal escrow (this) — open/bet/resolve/claim + creator cut.
-2. Lazy/signature-matched P2P (port LazyBet / createAndPlaceBet from FUD Base).
-3. GenLayer → Arc settlement bridge (resolve price off-chain, settle USDC on Arc).
-4. Bot (Telegram + X) pointed at Arc.
-5. Multi-asset: crypto + FX canonical markets via Pyth/Stork pull oracle (stocks = later).
-6. Frontend (FUD design system) + demo.
+1. ✅ **USDC escrow on Arc** — open / bet / resolve / claim + creator cut, deployed + smoke-tested.
+2. ✅ **Agent → Arc** — the Telegram bot creates markets on Arc, auto-resolved at close.
+3. ✅ **Frontend** — on-chain market dashboard in the FUD design system.
+4. **Signature-based P2P matching** — take the other side with one signature, no manual tx.
+5. **GenLayer-driven resolution on Arc** — outcomes from GenLayer's validator consensus settle via `resolve()`.
+6. **Multi-asset** — crypto + FX canonical markets via a pull oracle (Pyth/Stork); stocks later.
+
+---
+
+*FUD makes opinions liquid — every take becomes a position. This is the stablecoin-native, agentic
+version, built on Arc.*

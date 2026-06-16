@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/* Geist vars (loaded in layout) + FUD brand tokens as utilities. */
+@theme inline {
+  --font-sans: var(--font-geist-sans), "Inter", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --color-canvas: #0a0a0a;
+  --color-signal-long: #34d399;  /* emerald-400 — LONG / win */
+  --color-signal-short: #f87171; /* red-400 — SHORT / loss   */
+}
+
+:root {
+  --background: #080808;
+  --foreground: #f0f0f0;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+
+/* ── Gold holo prestige border (official) ── */
+@property --holo-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+@keyframes holo-spin { to { --holo-angle: 360deg; } }
+@keyframes shimmer-move { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+
+.gold-holo-wrapper {
+  position: relative; width: 100%; border-radius: 18px; padding: 2px;
+  animation: holo-spin 4s linear infinite;
+  background: conic-gradient(from var(--holo-angle),
+    #7d5a00, #c8960c, #ffd700, #fff6a0, #ffd700, #c8960c, #7d5a00);
+  box-shadow: 0 0 18px rgba(255,215,0,.35), 0 0 40px rgba(255,215,0,.15);
+  will-change: transform;
+}
+.gold-holo-wrapper::before {
+  content: ""; position: absolute; inset: -6px; border-radius: 24px;
+  background: conic-gradient(from var(--holo-angle),
+    #ffd70000, #ffd70088, #fff6a060, #ffd70088, #ffd70000);
+  filter: blur(14px); z-index: -1; opacity: .9;
+}
+.gold-holo-inner { position: relative; overflow: hidden; }
+.gold-holo-inner::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(105deg, transparent 25%, rgba(255,215,0,.06) 40%,
+    rgba(255,250,180,.12) 50%, rgba(255,215,0,.06) 60%, transparent 75%);
+  background-size: 200% 100%; animation: shimmer-move 2.5s ease-in-out infinite;
+}
+
+/* ── Live pulse dot ── */
+@keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+.live-dot { animation: live-pulse 1.6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gold-holo-wrapper { animation: none;
+    background: conic-gradient(from 45deg, #7d5a00, #ffd700, #7d5a00); }
+  .gold-holo-wrapper::before, .gold-holo-inner::after { display: none; }
+  .live-dot { animation: none; }
+}
