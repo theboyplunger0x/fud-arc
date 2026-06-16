@@ -187,4 +187,176 @@ contract FudArcMarketTest is Test {
         assertEq(market.payoutOf(id, bob), 95e6);
         assertEq(market.payoutOf(id, carol), 0);
     }
+
+    // ─── reverts: openMarket / bet ───────────────────────────────────────────
+    function test_OpenMarket_ZeroAmount_Reverts() public {
+        vm.prank(alice);
+        vm.expectRevert(FudArcMarket.ZeroAmount.selector);
+        market.openMarket(closesAt, FudArcMarket.Side.Long, 0);
+    }
+
+    function test_OpenMarket_AlreadyClosed_Reverts() public {
+        vm.prank(alice);
+        vm.expectRevert(FudArcMarket.Closed.selector);
+        market.openMarket(uint64(block.timestamp), FudArcMarket.Side.Long, 100e6);
+    }
+
+    function test_Bet_ZeroAmount_Reverts() public {
+        vm.prank(alice);
+        uint256 id = market.openMarket(closesAt, FudArcMarket.Side.Long, 100e6);
+        vm.prank(bob);
+        vm.expectRevert(FudArcMarket.ZeroAmount.selector);
+        market.bet(id, FudArcMarket.Side.Short, 0);
+    }
+
+    function test_Bet_UnknownMarket_Reverts() public {
+        vm.prank(bob);
+        vm.expectRevert(FudArcMarket.UnknownMarket.selector);
+        market.bet(999, FudArcMarket.Side.Short, 50e6);
+    }
+
+    // ─── reverts: resolve ────────────────────────────────────────────────────
+    function test_Resolve_UnknownMarket_Reverts() public {
+        vm.warp(closesAt + 1);
+        vm.prank(operator);
+        vm.expectRevert(FudArcMarket.UnknownMarket.selector);
+        market.resolve(999, FudArcMarket.Outcome.Long);
+    }
+
+    function test_Resolve_BadOutcome_Reverts() public {
+        uint256 id = _openLongVsShort(100e6, 100e6);
+        vm.warp(closesAt + 1);
+        vm.prank(operator);
+        vm.expectRevert(FudArcMarket.BadOutcome.selector);
+        market.resolve(id, FudArcMarket.Outcome.Unresolved);
+    }
+
+    function test_Resolve_Twice_Reverts() public {
+        uint256 id = _openLongVsShort(100e6, 100e6);
+        vm.warp(closesAt + 1);
+        vm.prank(operator);
+        market.resolve(id, FudArcMarket.Outcome.Long);
+        vm.prank(operator);
+        vm.expectRevert(FudArcMarket.AlreadyResolved.selector);
+        market.resolve(id, FudArcMarket.Outcome.Short);
+    }
+
+    // ─── reverts: claim / claimCreator / claimTreasury ───────────────────────
+    function test_Claim_BeforeResolve_Reverts() public {
+        uint256 id = _openLongVsShort(100e6, 100e6);
+        vm.prank(alice);
+        vm.expectRevert(FudArcMarket.NotResolved.selector);
+        market.claim(id);
+    }
+
+    function test_ClaimCreator_NoWinnings_Reverts() public {
+        vm.prank(alice);
+        vm.expectRevert(FudArcMarket.NoWinnings.selector);
+        market.claimCreator();
+    }
+
+    function test_ClaimTreasury_NoWinnings_Reverts() public {
+        vm.expectRevert(FudArcMarket.NoWinnings.selector);
+        market.claimTreasury();
+    }
+
+    // ─── SHORT wins (mirror of the LONG path; opener still earns the cut) ─────
+    function test_Resolve_ShortWins_PayoutsAndCreatorCut() public {
+        uint256 id = _openLongVsShort(100e6, 100e6); // alice long (opener), bob short
+        vm.warp(closesAt + 1);
+        vm.prank(operator);
+        market.resolve(id, FudArcMarket.Outcome.Short);
+
+        // loser pool = long 100, fee 10, opener cut 2 (to alice), treasury 8.
+        assertEq(market.treasuryClaimable(), 8e6);
+
+        // bob (sole short winner) claims 100 + 90 = 190.
+        uint256 b0 = usdc.balanceOf(bob);
+        vm.prank(bob);
+        market.claim(id);
+        assertEq(usdc.balanceOf(bob) - b0, 190e6, "short winner payout");
+
+        // alice loses the bet but still earns the OPENER cut (opener regardless of side).
+        uint256 a0 = usdc.balanceOf(alice);
+        vm.prank(alice);
+        market.claimCreator();
+        assertEq(usdc.balanceOf(alice) - a0, 2e6, "opener cut even when opener loses");
+
+        // alice has no winnings to claim.
+        vm.prank(alice);
+        vm.expectRevert(FudArcMarket.NoWinnings.selector);
+        market.claim(id);
+    }
+
+    // ─── admin: setOperator / setTreasury / transferOwnership ────────────────
+    function test_SetOperator_OnlyOwner_AndZeroGuard() public {
+        vm.prank(alice);
+        vm.expectRevert(FudArcMarket.NotOwner.selector);
+        market.setOperator(alice);
+        vm.expectRevert(FudArcMarket.ZeroAddress.selector);
+        market.setOperator(address(0)); // owner = this test contract
+    }
+
+    function test_SetOperator_NewOperatorCanResolve() public {
+        address newOp = makeAddr("newOp");
+        market.setOperator(newOp); // owner = test contract
+        uint256 id = _openLongVsShort(100e6, 100e6);
+        vm.warp(closesAt + 1);
+        // old operator can no longer resolve.
+        vm.prank(operator);
+        vm.expectRevert(FudArcMarket.NotOperator.selector);
+        market.resolve(id, FudArcMarket.Outcome.Long);
+        // new operator can.
+        vm.prank(newOp);
+        market.resolve(id, FudArcMarket.Outcome.Long);
+        (,, FudArcMarket.Outcome outcome,,,) = market.markets(id);
+        assertEq(uint8(outcome), uint8(FudArcMarket.Outcome.Long));
+    }
+
+    function test_SetTreasury_OnlyOwner_AndRoutesFee() public {
+        vm.prank(alice);
+        vm.expectRevert(FudArcMarket.NotOwner.selector);
+        market.setTreasury(alice);
+        vm.expectRevert(FudArcMarket.ZeroAddress.selector);
+        market.setTreasury(address(0));
+
+        address newTreasury = makeAddr("newTreasury");
+        market.setTreasury(newTreasury);
+        uint256 id = _openLongVsShort(100e6, 100e6);
+        vm.warp(closesAt + 1);
+        vm.prank(operator);
+        market.resolve(id, FudArcMarket.Outcome.Long);
+        market.claimTreasury();
+        assertEq(usdc.balanceOf(newTreasury), 8e6, "fee routes to the new treasury");
+        assertEq(usdc.balanceOf(treasury), 0, "old treasury gets nothing");
+    }
+
+    function test_TransferOwnership_OnlyOwner_AndZeroGuard() public {
+        vm.prank(alice);
+        vm.expectRevert(FudArcMarket.NotOwner.selector);
+        market.transferOwnership(alice);
+        vm.expectRevert(FudArcMarket.ZeroAddress.selector);
+        market.transferOwnership(address(0));
+
+        // hand ownership to alice: she can now set the operator; the old owner can't.
+        market.transferOwnership(alice);
+        vm.expectRevert(FudArcMarket.NotOwner.selector);
+        market.setOperator(bob);
+        vm.prank(alice);
+        market.setOperator(bob);
+        assertEq(market.operator(), bob);
+    }
+
+    // ─── payoutOf view edge cases ────────────────────────────────────────────
+    function test_PayoutOf_UnresolvedAndClaimed_ReturnZero() public {
+        uint256 id = _openLongVsShort(100e6, 100e6);
+        assertEq(market.payoutOf(id, alice), 0, "unresolved -> 0");
+        vm.warp(closesAt + 1);
+        vm.prank(operator);
+        market.resolve(id, FudArcMarket.Outcome.Long);
+        assertGt(market.payoutOf(id, alice), 0, "resolved winner > 0");
+        vm.prank(alice);
+        market.claim(id);
+        assertEq(market.payoutOf(id, alice), 0, "claimed -> 0");
+    }
 }
