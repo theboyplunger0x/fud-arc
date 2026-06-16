@@ -118,26 +118,28 @@ venue. So the core carries **no third-party dependency** beyond GenLayer + Arc.
 `src/FudArcMarket.sol` — two-sided P2P market escrow:
 open → bet LONG/SHORT → operator resolves → winners claim (stake + pro-rata of
 net losing pool) → opener claims creator cut. Fee 10% of losing pool, opener cut
-20% of fee. Handles draw + one-sided (full refund). 9/9 unit tests pass.
+20% of fee. Handles draw + one-sided (full refund). **10/10 unit tests pass**
+(incl. constructor zero-address guard). `forge fmt`-clean; runtime 4,742 B.
 
-**Deployed to Arc testnet 2026-06-15 (hardened build):**
+**Deployed to Arc testnet 2026-06-16 (current):**
 ```
-FudArcMarket:  0xA2C7060Ef31f17Fa359D498Daf5347fDa15F763a   (HARDENED pull build — matches repo HEAD)
-Explorer:      https://testnet.arcscan.app/address/0xA2C7060Ef31f17Fa359D498Daf5347fDa15F763a
+FudArcMarket:  0x57352a7983E57De691fcEa5d7544CF6a398c0bf1   (current — matches repo HEAD)
+Explorer:      https://testnet.arcscan.app/address/0x57352a7983E57De691fcEa5d7544CF6a398c0bf1
 operator/treasury: deployer (single-key for now)
-superseded:    0x243099Cd8ebD0b0710D089666C28f133D9B4e861   (pre-review PUSH build — dead, do not use)
+superseded:    0xA2C7060Ef31f17Fa359D498Daf5347fDa15F763a  (pre-fmt / pre-constructor-guard — dead)
+               0x243099Cd8ebD0b0710D089666C28f133D9B4e861  (pre-review PUSH build — dead)
 ```
-Smoke test (real USDC on Arc): approve → open LONG $5 → bet SHORT $5 (contract
-held $10) → resolve LONG → claim → claimCreator → **contract drained to 0,
-deployer net-zero on trades minus gas.** Full loop proven on-chain.
+Smoke-tested on-chain (full loop: approve → open → bet → resolve → claim →
+creator, contract drains to 0). The Telegram→Arc bot path (FUDmarkets `arc-demo`
+branch) drives this contract via `arcMarketService`.
 
-> ✅ **ON-CHAIN == REPO (reconciled 2026-06-15).** The hardened build (commit
-> `6ecc7ae`: treasury + creator cut are pull-based via `claimTreasury()` /
-> `claimCreator()`, zero-address guards — removes the push→DoS vector) was
-> **redeployed** to `0xA2C7060Ef31f17Fa359D498Daf5347fDa15F763a` and verified
-> on-chain (`treasuryClaimable()` present, `nextMarketId == 1`, roles set). The old
-> push-build at `0x2430…` is **superseded — dead bytecode, do not use.** The live
-> address now equals repo source.
+> ✅ **ON-CHAIN == REPO (reconciled 2026-06-16).** Latest source — pull-based
+> payouts (`claimTreasury()`/`claimCreator()`), constructor + setter zero-address
+> guards, `forge fmt`-clean, integer pro-rata dust accepted as negligible (single-
+> winner markets, incl. the demo, distribute exactly) — was **redeployed** to
+> `0x57352a7983E57De691fcEa5d7544CF6a398c0bf1` and verified fresh on-chain
+> (`nextMarketId == 1`, `treasuryClaimable == 0`, balance 0, roles set). Prior
+> deploys `0xA2C7…` and `0x2430…` are **superseded — dead, do not use.**
 
 ---
 

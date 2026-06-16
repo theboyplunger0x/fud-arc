@@ -22,26 +22,34 @@ interface IERC20 {
 /// @dev    Deliberately minimal: single operator, no signatures/lazy-match yet.
 ///         Step 1 of the Arc port — proves approvals, escrow, settlement, payout.
 contract FudArcMarket {
-    enum Side { Long, Short }                         // 0, 1
-    enum Outcome { Unresolved, Long, Short, Draw }    // 0, 1, 2, 3
+    enum Side {
+        Long, // 0, 1
+        Short
+    }
+    enum Outcome {
+        Unresolved, // 0, 1, 2, 3
+        Long,
+        Short,
+        Draw
+    }
 
     struct Market {
         address opener;
-        uint64  closesAt;
+        uint64 closesAt;
         Outcome outcome;
         uint256 longPool;
         uint256 shortPool;
         uint256 fee; // protocol fee skimmed from the losing pool at resolve time
     }
 
-    IERC20  public immutable usdc;
+    IERC20 public immutable usdc;
     address public owner;
     address public operator; // resolver (backend / GenLayer relay)
     address public treasury;
 
-    uint16 public constant FEE_BPS        = 1000;  // 10% of the losing pool (FUD V5.4)
-    uint16 public constant OPENER_CUT_BPS = 2000;  // opener earns 20% of the fee
-    uint16 public constant BPS            = 10000;
+    uint16 public constant FEE_BPS = 1000; // 10% of the losing pool (FUD V5.4)
+    uint16 public constant OPENER_CUT_BPS = 2000; // opener earns 20% of the fee
+    uint16 public constant BPS = 10000;
 
     uint256 public nextMarketId = 1;
     mapping(uint256 => Market) public markets;
@@ -49,7 +57,7 @@ contract FudArcMarket {
     mapping(uint256 => mapping(address => mapping(uint8 => uint256))) public stakeOf;
     mapping(uint256 => mapping(address => bool)) public claimed;
     mapping(address => uint256) public creatorClaimable; // opener cut, pull-based
-    uint256 public treasuryClaimable;                    // protocol fee remainder, pull-based
+    uint256 public treasuryClaimable; // protocol fee remainder, pull-based
 
     event MarketOpened(uint256 indexed id, address indexed opener, Side side, uint256 amount, uint64 closesAt);
     event BetPlaced(uint256 indexed id, address indexed user, Side side, uint256 amount);
@@ -72,10 +80,17 @@ contract FudArcMarket {
     error TransferFailed();
     error ZeroAddress();
 
-    modifier onlyOperator() { if (msg.sender != operator) revert NotOperator(); _; }
-    modifier onlyOwner()    { if (msg.sender != owner) revert NotOwner(); _; }
+    modifier onlyOperator() {
+        if (msg.sender != operator) revert NotOperator();
+        _;
+    }
+    modifier onlyOwner() {
+        if (msg.sender != owner) revert NotOwner();
+        _;
+    }
 
     constructor(address _usdc, address _operator, address _treasury) {
+        if (_usdc == address(0) || _operator == address(0) || _treasury == address(0)) revert ZeroAddress();
         usdc = IERC20(_usdc);
         owner = msg.sender;
         operator = _operator;
@@ -182,9 +197,14 @@ contract FudArcMarket {
         uint8 winSide = m.outcome == Outcome.Long ? 0 : 1;
         uint256 stake = stakeOf[id][user][winSide];
         if (stake == 0) return 0;
-        uint256 winnerPool   = winSide == 0 ? m.longPool : m.shortPool;
-        uint256 loserPool    = winSide == 0 ? m.shortPool : m.longPool;
+        uint256 winnerPool = winSide == 0 ? m.longPool : m.shortPool;
+        uint256 loserPool = winSide == 0 ? m.shortPool : m.longPool;
         uint256 distributable = loserPool - m.fee;
+        // Pro-rata via integer division: floor(stake * distributable / winnerPool). With
+        // MULTIPLE winners on the same side the floors can leave up to (winners - 1) units of
+        // USDC dust (~$0.000001 each) in the contract — an accepted, negligible property of
+        // integer pro-rata, by design (no sweep to keep the contract minimal). Single-winner
+        // markets (incl. the operator-both-sides demo) distribute the pool exactly: no dust.
         return stake + (stake * distributable) / winnerPool;
     }
 
@@ -197,7 +217,18 @@ contract FudArcMarket {
     }
 
     // ─── admin ─────────────────────────────────────────────────────────────
-    function setOperator(address a) external onlyOwner { if (a == address(0)) revert ZeroAddress(); operator = a; }
-    function setTreasury(address a) external onlyOwner { if (a == address(0)) revert ZeroAddress(); treasury = a; }
-    function transferOwnership(address a) external onlyOwner { if (a == address(0)) revert ZeroAddress(); owner = a; }
+    function setOperator(address a) external onlyOwner {
+        if (a == address(0)) revert ZeroAddress();
+        operator = a;
+    }
+
+    function setTreasury(address a) external onlyOwner {
+        if (a == address(0)) revert ZeroAddress();
+        treasury = a;
+    }
+
+    function transferOwnership(address a) external onlyOwner {
+        if (a == address(0)) revert ZeroAddress();
+        owner = a;
+    }
 }

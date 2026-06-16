@@ -12,7 +12,7 @@ contract FudArcMarketTest is Test {
     address operator;
     address treasury;
     address alice; // opener, LONG
-    address bob;   // taker, SHORT
+    address bob; // taker, SHORT
 
     uint64 closesAt;
 
@@ -39,6 +39,15 @@ contract FudArcMarketTest is Test {
         id = market.openMarket(closesAt, FudArcMarket.Side.Long, longAmt);
         vm.prank(bob);
         market.bet(id, FudArcMarket.Side.Short, shortAmt);
+    }
+
+    function test_Constructor_RejectsZeroAddress() public {
+        vm.expectRevert(FudArcMarket.ZeroAddress.selector);
+        new FudArcMarket(address(0), operator, treasury);
+        vm.expectRevert(FudArcMarket.ZeroAddress.selector);
+        new FudArcMarket(address(usdc), address(0), treasury);
+        vm.expectRevert(FudArcMarket.ZeroAddress.selector);
+        new FudArcMarket(address(usdc), operator, address(0));
     }
 
     function test_OpenAndBet_TracksPools() public {
@@ -94,8 +103,10 @@ contract FudArcMarketTest is Test {
 
         uint256 a0 = usdc.balanceOf(alice);
         uint256 b0 = usdc.balanceOf(bob);
-        vm.prank(alice); market.claim(id);
-        vm.prank(bob);   market.claim(id);
+        vm.prank(alice);
+        market.claim(id);
+        vm.prank(bob);
+        market.claim(id);
         assertEq(usdc.balanceOf(alice) - a0, 100e6, "alice refund");
         assertEq(usdc.balanceOf(bob) - b0, 60e6, "bob refund");
         assertEq(usdc.balanceOf(treasury), 0, "no fee on draw");
@@ -110,7 +121,8 @@ contract FudArcMarketTest is Test {
         market.resolve(id, FudArcMarket.Outcome.Long);
 
         uint256 a0 = usdc.balanceOf(alice);
-        vm.prank(alice); market.claim(id);
+        vm.prank(alice);
+        market.claim(id);
         assertEq(usdc.balanceOf(alice) - a0, 100e6, "one-sided refund");
         assertEq(usdc.balanceOf(treasury), 0, "no fee one-sided");
     }
@@ -144,7 +156,8 @@ contract FudArcMarketTest is Test {
         vm.warp(closesAt + 1);
         vm.prank(operator);
         market.resolve(id, FudArcMarket.Outcome.Long);
-        vm.prank(alice); market.claim(id);
+        vm.prank(alice);
+        market.claim(id);
         vm.prank(alice);
         vm.expectRevert(FudArcMarket.AlreadyClaimed.selector);
         market.claim(id);
