@@ -1,35 +1,41 @@
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 
 export type Theme = "dark" | "light";
 
 const STORAGE_KEY = "fud_theme";
+const EVENT = "fud-theme-change";
 
-/**
- * App theme (dark / light) persisted in localStorage.
- * Demo default = dark (FUD's hero look). localStorage is read in an effect (not
- * the useState initializer) so server and first client render agree — no
- * hydration mismatch; a saved "light" preference is applied right after mount.
- */
-export function useAppTheme(): {
-  theme: Theme;
-  setTheme: (t: Theme) => void;
-  toggle: () => void;
-  dk: boolean;
-} {
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [hydrated, setHydrated] = useState(false);
+// Theme is backed by an EXTERNAL store (localStorage) read via useSyncExternalStore.
+// Every consumer (page, ThemeToggle, …) shares the same value, so the toggle updates
+// the whole app at once — no per-component useState drift. Server snapshot = "dark"
+// (the demo hero look); the client reconciles to a saved "light" without a hydration
+// mismatch, and there is no setState-in-effect (clean under react-hooks lint).
 
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === "light" || saved === "dark") setTheme(saved);
-    setHydrated(true);
-  }, []);
+function getSnapshot(): Theme {
+  return localStorage.getItem(STORAGE_KEY) === "light" ? "light" : "dark";
+}
 
-  useEffect(() => {
-    if (hydrated) localStorage.setItem(STORAGE_KEY, theme);
-  }, [theme, hydrated]);
+function getServerSnapshot(): Theme {
+  return "dark";
+}
 
-  const toggle = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+function subscribe(onChange: () => void): () => void {
+  window.addEventListener(EVENT, onChange);
+  window.addEventListener("storage", onChange); // cross-tab sync
+  return () => {
+    window.removeEventListener(EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
 
-  return { theme, setTheme, toggle, dk: theme === "dark" };
+export function useAppTheme(): { theme: Theme; toggle: () => void; dk: boolean } {
+  const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+
+  const toggle = () => {
+    const next: Theme = theme === "dark" ? "light" : "dark";
+    localStorage.setItem(STORAGE_KEY, next);
+    window.dispatchEvent(new Event(EVENT)); // notify every subscriber in this tab
+  };
+
+  return { theme, toggle, dk: theme === "dark" };
 }

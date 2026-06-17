@@ -15,7 +15,7 @@ matches a counterparty, and settles on-chain — paying the creator who brought 
 
 | Piece | What it is | Where |
 |---|---|---|
-| **Contract** | `FudArcMarket` — minimal two-sided P2P USDC escrow: open → bet LONG/SHORT → resolve → winners claim (stake + pro-rata of the net losing pool) → **opener claims a creator cut**. Pull-based payouts, zero-address guards, 10/10 tests, `forge fmt`-clean, green CI. | [`src/FudArcMarket.sol`](src/FudArcMarket.sol) |
+| **Contract** | `FudArcMarket` — minimal two-sided P2P USDC escrow: open → bet LONG/SHORT → resolve → winners claim (stake + pro-rata of the net losing pool) → **opener claims a creator cut**. Pull-based payouts, zero-address guards, 26 tests (~93% branch coverage), `forge fmt`-clean, green CI. | [`src/FudArcMarket.sol`](src/FudArcMarket.sol) |
 | **Agent** | The live FUD Telegram bot, pointed at Arc behind a flag: a social call becomes an on-chain market on Arc, auto-resolved at close. | [FUDmarkets `arc-demo` branch](https://github.com/theboyplunger0x/FUDmarkets/tree/arc-demo) |
 | **Frontend** | Next.js dashboard (FUD design system) that reads the markets **on-chain** from Arc and shows the live loop. | [`web/`](web/) |
 

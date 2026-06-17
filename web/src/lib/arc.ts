@@ -12,6 +12,8 @@ export const arcTestnet = defineChain({
 export const MARKET_ADDRESS = "0x57352a7983E57De691fcEa5d7544CF6a398c0bf1" as const;
 export const EXPLORER = "https://testnet.arcscan.app";
 
+// http() transport only — the app never uses viem's WebSocket transport, so the
+// transitive `ws` advisory (DoS) is outside this app's code path.
 const client = createPublicClient({ chain: arcTestnet, transport: http() });
 
 export type Outcome = 0 | 1 | 2 | 3; // Unresolved, Long, Short, Draw

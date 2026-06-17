@@ -176,7 +176,7 @@ export default function Home() {
                 <div className={`mt-3 flex items-center justify-between text-[11px] ${muted}`}>
                   <span className="font-mono">opener {shortAddr(m.opener)}</span>
                   <span className={m.outcome !== 0 ? toneText : ""}>
-                    {m.outcome !== 0 ? `fee $${usd(m.fee)} · creator paid` : "fee skimmed on resolve"}
+                    {m.outcome !== 0 ? `fee $${usd(m.fee)} · creator cut` : "fee skimmed on resolve"}
                   </span>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 # FUD on Arc — Project Context & Handoff
 
 > Single source of context for this repo. If you open VS Code here fresh, read this first.
-> Last updated: 2026-06-15.
+> Last updated: 2026-06-17.
 
 ---
 
@@ -138,7 +138,9 @@ branch) drives this contract via `arcMarketService`.
 > guards, `forge fmt`-clean, integer pro-rata dust accepted as negligible (single-
 > winner markets, incl. the demo, distribute exactly) — was **redeployed** to
 > `0x57352a7983E57De691fcEa5d7544CF6a398c0bf1` and verified fresh on-chain
-> (`nextMarketId == 1`, `treasuryClaimable == 0`, balance 0, roles set). Prior
+> (`nextMarketId == 1`, `treasuryClaimable == 0`, balance 0 at deploy; the live contract has
+> **since been seeded with demo markets** for the FE, so today it holds a few open/resolved
+> markets — `nextMarketId > 1`). Prior
 > deploys `0xA2C7…` and `0x2430…` are **superseded — dead, do not use.**
 
 ---
