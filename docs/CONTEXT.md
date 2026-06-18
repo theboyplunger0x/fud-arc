@@ -1,7 +1,7 @@
 # FUD on Arc — Project Context & Handoff
 
 > Single source of context for this repo. If you open VS Code here fresh, read this first.
-> Last updated: 2026-06-17.
+> Last updated: 2026-06-18.
 
 ---
 
@@ -118,8 +118,11 @@ venue. So the core carries **no third-party dependency** beyond GenLayer + Arc.
 `src/FudArcMarket.sol` — two-sided P2P market escrow:
 open → bet LONG/SHORT → operator resolves → winners claim (stake + pro-rata of
 net losing pool) → opener claims creator cut. Fee 10% of losing pool, opener cut
-20% of fee. Handles draw + one-sided (full refund). **10/10 unit tests pass**
-(incl. constructor zero-address guard). `forge fmt`-clean; runtime 4,742 B.
+20% of fee. Handles draw + one-sided (full refund). **27/27 unit tests pass**
+(incl. constructor zero-address guard and opener-straddle security regression).
+`forge fmt`-clean; runtime 4,742 B. Independent security review: **0 critical /
+0 high**; medium/low pre-mainnet hardening items are documented, not blockers
+for the testnet hackathon demo.
 
 **Deployed to Arc testnet 2026-06-16 (current):**
 ```
@@ -167,13 +170,11 @@ forge script script/Deploy.s.sol --rpc-url arc_testnet --broadcast   # needs .en
 ```
 
 ## 9. Next steps
-- [ ] Decide: does FX (EUR/USD) go in the demo, or just the vision slide?
-- [ ] Verify Pyth-on-Arc vs use Stork (ask at the 19/26 session).
-- [ ] Port the lazy/signature P2P flow (LazyBet) — or keep operator-resolve for MVP.
-- [ ] GenLayer → Arc settlement bridge.
-- [ ] Point the bot (TG first) at Arc.
+- [ ] Record the 2–3 min walkthrough from `docs/demo-script.md`.
+- [ ] Deploy / confirm the frontend working URL and add it to `docs/submission-checklist.md`.
 - [ ] Install `uv` + ARC-CLI; start posting progress updates to judges.
-- [ ] Frontend (FUD design system) + 2–3 min demo video + working URL.
+- [ ] Submit early, then update with the final video/frontend URL.
+- [ ] Post-hackathon / pre-mainnet: snapshot treasury per market, move ownership to two-step, port lazy/signature P2P, and wire the GenLayer relay as production settlement.
 
 ## 10. Notes
 Internal brainstorm / strategy transcripts are intentionally kept **out of this

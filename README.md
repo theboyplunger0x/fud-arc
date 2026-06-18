@@ -19,6 +19,13 @@ matches a counterparty, and settles on-chain — paying the creator who brought 
 | **Agent** | The live FUD Telegram bot, pointed at Arc behind a flag: a social call becomes an on-chain market on Arc, auto-resolved at close. | [FUDmarkets `arc-demo` branch](https://github.com/theboyplunger0x/FUDmarkets/tree/arc-demo) |
 | **Frontend** | Next.js dashboard (FUD design system) that reads the markets **on-chain** from Arc and shows the live loop. | [`web/`](web/) |
 
+## Judge quick path
+
+1. **Try the product:** open the deployed frontend at [`fud-arc-hackaton.vercel.app`](https://fud-arc-hackaton.vercel.app) and watch live Arc markets read straight from chain.
+2. **Verify the contract:** inspect `0x57352a7983E57De691fcEa5d7544CF6a398c0bf1` on Arcscan and follow `openMarket → bet → resolve → claim / claimCreator`.
+3. **Review the repo:** `forge test -vvv` runs 27/27 tests; CI covers Foundry fmt/build/tests plus frontend lint/build.
+4. **Watch the demo:** the 2-3 minute walkthrough follows [`docs/demo-script.md`](docs/demo-script.md); final submission prep lives in [`docs/submission-checklist.md`](docs/submission-checklist.md).
+
 ```
  Telegram call ──▶ agent ──▶ openMarket() on Arc ──▶ counterparty bet()
                                                           │
@@ -60,7 +67,7 @@ forge script script/Deploy.s.sol --rpc-url arc_testnet --broadcast   # after fil
 **Frontend (Next.js):**
 ```bash
 cd web
-npm install
+npm ci
 npm run dev      # http://localhost:3000 — reads the live Arc markets
 ```
 

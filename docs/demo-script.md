@@ -32,7 +32,7 @@ countdown.
 > "The dashboard reads markets straight from the Arc contract — no backend in the middle. Here's the
 > market we just opened, live."
 
-Scroll to a resolved market: green **LONG won**, "creator paid".
+Scroll to a resolved market: green **LONG won**, fee / creator cut visible.
 
 ### 1:30 — Settlement: GenLayer + USDC on Arc (40s)
 > "At close, the outcome comes from **GenLayer** — the same decentralized validator-consensus oracle
@@ -57,3 +57,5 @@ Show: the GitHub repo + the live URL on screen.
 - [ ] Pick a 15m timeframe so the open→bet window is comfortable and the market resolves within the demo.
 - [ ] Frontend deployed (working URL) with a couple of seeded markets (one LIVE, one resolved) for the dashboard shot.
 - [ ] Have the Arc explorer tab ready on the contract `0x57352a7983E57De691fcEa5d7544CF6a398c0bf1`.
+- [ ] Have tx tabs ready for `openMarket`, `bet`, `resolve`, `claim`, and `claimCreator`.
+- [ ] Run the final checklist in `docs/submission-checklist.md`.
