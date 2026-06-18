@@ -111,6 +111,11 @@ contract FudArcMarket {
     }
 
     /// @notice Back LONG or SHORT on an open market.
+    /// @dev    Anyone — including the opener — may back either side, and the same
+    ///         address may stake on BOTH sides. Accepted by design: the opener is
+    ///         just another bettor. The contract conserves funds in every case
+    ///         (see `_payout` / accounting), so straddling can never over-pay; it
+    ///         only splits the staker's own exposure across sides. (Sec review M-2.)
     function bet(uint256 id, Side side, uint256 amount) external {
         if (amount == 0) revert ZeroAmount();
         Market storage m = markets[id];
@@ -190,11 +195,16 @@ contract FudArcMarket {
     }
 
     function _payout(uint256 id, Market storage m, address user) internal view returns (uint256) {
-        // Draw or one-sided (no counterparty) → full refund of both sides.
+        // Draw OR one-sided (no counterparty) → full refund of both sides. The two states
+        // intentionally share this branch (both fully refund, no fee); a future fee-on-draw
+        // change would have to split them. (Sec review L-3.)
         if (m.outcome == Outcome.Draw || m.longPool == 0 || m.shortPool == 0) {
             return stakeOf[id][user][0] + stakeOf[id][user][1];
         }
         uint8 winSide = m.outcome == Outcome.Long ? 0 : 1;
+        // Only the winning-side stake pays out. A straddling bettor's losing-side stake is
+        // intentionally NOT refunded here — it lives in `loserPool`/`distributable` and funds the
+        // winners. After claim() sets `claimed`, payoutOf returns 0 (expected, not a bug). (Sec L-1.)
         uint256 stake = stakeOf[id][user][winSide];
         if (stake == 0) return 0;
         uint256 winnerPool = winSide == 0 ? m.longPool : m.shortPool;

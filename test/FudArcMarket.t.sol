@@ -359,4 +359,34 @@ contract FudArcMarketTest is Test {
         market.claim(id);
         assertEq(market.payoutOf(id, alice), 0, "claimed -> 0");
     }
+
+    // M-2 (security review): the opener may straddle (bet both sides) + claim winner
+    // payout AND creator cut. Verify the contract still conserves funds — no over-pay.
+    function test_OpenerStraddle_NoOverpay() public {
+        // alice opens LONG 100, also bets SHORT 40; bob bets SHORT 60 → pools long 100 / short 100.
+        vm.prank(alice);
+        uint256 id = market.openMarket(closesAt, FudArcMarket.Side.Long, 100e6);
+        vm.prank(alice);
+        market.bet(id, FudArcMarket.Side.Short, 40e6);
+        vm.prank(bob);
+        market.bet(id, FudArcMarket.Side.Short, 60e6);
+        // total in = 200. LONG wins → loserPool 100, fee 10, openerCut 2, distributable 90.
+        // alice (sole long winner) = 100 + 90 = 190; creator cut = 2; treasury = 8.
+        vm.warp(closesAt + 1);
+        vm.prank(operator);
+        market.resolve(id, FudArcMarket.Outcome.Long);
+
+        uint256 a0 = usdc.balanceOf(alice);
+        vm.prank(alice);
+        market.claim(id);
+        vm.prank(alice);
+        market.claimCreator();
+        // winner payout + creator cut = 192. alice's SHORT 40 stays absorbed in the loser pool.
+        assertEq(usdc.balanceOf(alice) - a0, 192e6, "straddle: winner + cut, no overpay");
+
+        market.claimTreasury();
+        assertEq(usdc.balanceOf(treasury), 8e6, "treasury fee remainder");
+        // conservation: 200 in == 192 (alice) + 8 (treasury); bob (loser) gets 0.
+        assertEq(usdc.balanceOf(address(market)), 0, "escrow drained, no overpay");
+    }
 }
