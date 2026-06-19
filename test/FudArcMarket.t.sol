@@ -389,4 +389,38 @@ contract FudArcMarketTest is Test {
         // conservation: 200 in == 192 (alice) + 8 (treasury); bob (loser) gets 0.
         assertEq(usdc.balanceOf(address(market)), 0, "escrow drained, no overpay");
     }
+
+    // Fuzz invariant: for ANY amounts + outcome, a 1-vs-1 market conserves funds
+    // exactly — Σ in == Σ out, nothing locked (single winner per side ⇒ no dust).
+    function testFuzz_Conservation(uint96 longAmt, uint96 shortAmt, uint8 outcomeRaw) public {
+        longAmt = uint96(bound(longAmt, 1, 1_000_000e6));
+        shortAmt = uint96(bound(shortAmt, 1, 1_000_000e6));
+        FudArcMarket.Outcome outcome = FudArcMarket.Outcome(uint8(bound(outcomeRaw, 1, 3))); // Long/Short/Draw
+
+        usdc.mint(alice, longAmt);
+        usdc.mint(bob, shortAmt);
+
+        vm.prank(alice);
+        uint256 id = market.openMarket(closesAt, FudArcMarket.Side.Long, longAmt);
+        vm.prank(bob);
+        market.bet(id, FudArcMarket.Side.Short, shortAmt);
+
+        assertEq(usdc.balanceOf(address(market)), uint256(longAmt) + uint256(shortAmt), "escrow holds both stakes");
+
+        vm.warp(closesAt + 1);
+        vm.prank(operator);
+        market.resolve(id, outcome);
+
+        // Everyone pulls everything they can (losers/empty pulls revert → caught).
+        vm.prank(alice);
+        try market.claim(id) {} catch {}
+        vm.prank(bob);
+        try market.claim(id) {} catch {}
+        vm.prank(alice);
+        try market.claimCreator() {} catch {} // opener cut (alice == opener)
+        try market.claimTreasury() {} catch {} // permissionless
+
+        // 1-vs-1 ⇒ single winner ⇒ exact pro-rata, no dust ⇒ contract fully drained.
+        assertEq(usdc.balanceOf(address(market)), 0, "conserved: nothing locked");
+    }
 }
