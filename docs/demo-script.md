@@ -42,6 +42,23 @@ Scroll to a resolved market: green **LONG won**, fee / creator cut visible.
 Show: the bot's resolution message ("resolved on Arc — LONG won · Resolved by GenLayer consensus")
 and the explorer `resolve` + `claim` + `claimCreator` txs.
 
+### (optional) Multi-asset: FX settled by an on-chain Pyth read (20–30s)
+> "It's not just tokens. Type an FX pair — `EUR/USD` — and the agent opens the same USDC market on Arc.
+> At close we settle it by reading **Pyth's price directly on-chain on Arc** — not an HTTP call, an
+> actual on-chain oracle read on the live Pyth contract. **FX prediction markets, settled by an
+> on-chain Pyth oracle read on Arc.**"
+
+Show: the bot opening an `EUR/USD` market, then the resolve log line `… via Pyth on-chain on Arc`.
+
+Presenter notes (so the claim survives scrutiny):
+- FX updates at **market cadence** (~2.6h between on-chain updates). For a visibly-LIVE on-chain tick,
+  show **BTC/USD** (sub-10s fresh) instead. Frame FX as "on-chain settlement read at FX-market cadence",
+  NOT "real-time on-chain FX".
+- Run in a **weekday / market-open** window — FX doesn't update on weekends.
+- Have `cast code 0x2880aB155794e7179c9eE2e38200202908C17B43` ready: Pyth's *canonical* address
+  (`0x4305FB…`) is NOT on Arc; Arc uses a per-chain deployment — pre-empt that objection.
+- Roadmap (do NOT claim as done): pull-mode `updatePriceFeeds` + Hermes VAA for sub-second freshness.
+
 ### 2:10 — Close (20s)
 > "FUD proved P2P conviction markets on Base. On Arc we made them agentic and stablecoin-native: an
 > autonomous agent that creates markets and pays creators — Autonomous Paying Agents and Creator
