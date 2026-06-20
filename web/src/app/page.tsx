@@ -1,32 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import ThemeToggle from "@/components/ThemeToggle";
-import { readMarkets, usd, MARKET_ADDRESS, EXPLORER, type Market } from "@/lib/arc";
-
-type Tone = "long" | "short" | "neutral";
-
-function statusOf(m: Market, now: number): { label: string; tone: Tone; live: boolean } {
-  if (m.outcome === 1) return { label: "LONG won", tone: "long", live: false };
-  if (m.outcome === 2) return { label: "SHORT won", tone: "short", live: false };
-  if (m.outcome === 3) return { label: "DRAW", tone: "neutral", live: false };
-  if (now < m.closesAt) return { label: "LIVE", tone: "neutral", live: true };
-  return { label: "CLOSED · awaiting resolve", tone: "neutral", live: false };
-}
+import MarketCard from "@/components/MarketCard";
+import { readMarkets, MARKET_ADDRESS, EXPLORER, type Market } from "@/lib/arc";
+import { SEED_META, fetchRemoteMeta, pythIdsOf, type MarketMeta } from "@/lib/marketMeta";
+import { fetchPythLatestMany, type PythPrice } from "@/lib/pyth";
 
 function shortAddr(a: string): string {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
-
-function timeLeft(closesAt: number, now: number): string {
-  const s = closesAt - now;
-  if (s <= 0) return "closed";
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m left`;
-  if (m > 0) return `${m}m ${s % 60}s left`;
-  return `${s}s left`;
 }
 
 export default function Home() {
@@ -34,10 +17,13 @@ export default function Home() {
   const [markets, setMarkets] = useState<Market[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState<number>(() => Math.floor(Date.now() / 1000));
+  const [prices, setPrices] = useState<Record<string, PythPrice>>({});
+  const [meta, setMeta] = useState<Record<number, MarketMeta>>(SEED_META);
+  const metaRef = useRef<Record<number, MarketMeta>>(SEED_META);
 
   useEffect(() => {
     let alive = true;
-    const load = async () => {
+    const loadMarkets = async () => {
       try {
         const m = await readMarkets();
         if (alive) {
@@ -48,12 +34,27 @@ export default function Home() {
         if (alive) setError(e instanceof Error ? e.message : "Failed to read Arc");
       }
     };
-    load();
-    const poll = setInterval(load, 15_000);
+    const loadMeta = async () => {
+      const remote = await fetchRemoteMeta();
+      const merged = Object.keys(remote).length ? { ...SEED_META, ...remote } : SEED_META;
+      metaRef.current = merged;
+      if (alive) setMeta(merged);
+    };
+    const loadPrices = async () => {
+      const p = await fetchPythLatestMany(pythIdsOf(metaRef.current));
+      if (alive && Object.keys(p).length) setPrices((prev) => ({ ...prev, ...p }));
+    };
+    loadMarkets();
+    loadMeta().then(loadPrices);
+    const poll = setInterval(loadMarkets, 15_000);
+    const metaPoll = setInterval(loadMeta, 30_000);
+    const pricePoll = setInterval(loadPrices, 10_000);
     const tick = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1_000);
     return () => {
       alive = false;
       clearInterval(poll);
+      clearInterval(metaPoll);
+      clearInterval(pricePoll);
       clearInterval(tick);
     };
   }, []);
@@ -119,67 +120,11 @@ export default function Home() {
             </div>
           )}
 
-          {sorted?.map((m) => {
-            const st = statusOf(m, now);
-            const total = m.longPool + m.shortPool;
-            const toneText =
-              st.tone === "long" ? "text-emerald-400" : st.tone === "short" ? "text-red-400" : muted;
-            const toneChip =
-              st.tone === "long"
-                ? dk
-                  ? "text-emerald-300 bg-emerald-500/20"
-                  : "text-emerald-700 bg-emerald-100"
-                : st.tone === "short"
-                  ? dk
-                    ? "text-red-300 bg-red-500/20"
-                    : "text-red-700 bg-red-100"
-                  : dk
-                    ? "text-white/60 bg-white/10"
-                    : "text-gray-600 bg-gray-100";
-
+          {sorted?.map((m, i) => {
+            const mm = meta[m.id] ?? null;
+            const live = mm?.pythId ? prices[mm.pythId.replace(/^0x/, "")] ?? null : null;
             return (
-              <div
-                key={m.id}
-                className={`rounded-2xl border p-4 transition ${dk ? "border-white/8 bg-white/[0.03] hover:border-white/14" : "border-gray-200 bg-gray-50 hover:border-gray-300"}`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-[14px] font-black tracking-tight">Market #{m.id}</span>
-                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full inline-flex items-center gap-1.5 ${toneChip}`}>
-                      {st.live && <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />}
-                      {st.label}
-                    </span>
-                  </div>
-                  <span className={`text-[11px] font-mono tabular-nums ${muted}`}>
-                    {m.outcome === 0 ? timeLeft(m.closesAt, now) : `$${usd(total)} pool`}
-                  </span>
-                </div>
-
-                {/* Pools bar */}
-                <div className="mt-3 flex items-center gap-3">
-                  <span className="text-[12px] font-mono tabular-nums text-emerald-400 w-20">
-                    L ${usd(m.longPool)}
-                  </span>
-                  <div className={`flex-1 h-1.5 rounded-full overflow-hidden ${dk ? "bg-white/[0.06]" : "bg-gray-200"}`}>
-                    <div
-                      className="h-full bg-emerald-400/70"
-                      style={{
-                        width: `${Number(total) > 0 ? (Number(m.longPool) / Number(total)) * 100 : 50}%`,
-                      }}
-                    />
-                  </div>
-                  <span className="text-[12px] font-mono tabular-nums text-red-400 w-20 text-right">
-                    ${usd(m.shortPool)} S
-                  </span>
-                </div>
-
-                <div className={`mt-3 flex items-center justify-between text-[11px] ${muted}`}>
-                  <span className="font-mono">opener {shortAddr(m.opener)}</span>
-                  <span className={m.outcome !== 0 ? toneText : ""}>
-                    {m.outcome !== 0 ? `fee $${usd(m.fee)} · creator cut` : "fee skimmed on resolve"}
-                  </span>
-                </div>
-              </div>
+              <MarketCard key={m.id} market={m} meta={mm} live={live} now={now} dk={dk} index={i} />
             );
           })}
         </div>
