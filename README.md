@@ -21,9 +21,11 @@ matches a counterparty, and settles on-chain — paying the creator who brought 
 
 ## Judge quick path
 
+**Start here:** [`docs/OVERVIEW.md`](docs/OVERVIEW.md) — the full thesis, architecture, economics, oracle approach, and what's real vs roadmap.
+
 1. **Try the product:** open the deployed frontend at [`fud-arc-hackaton.vercel.app`](https://fud-arc-hackaton.vercel.app) and watch live Arc markets read straight from chain.
 2. **Verify the contract:** inspect `0x57352a7983E57De691fcEa5d7544CF6a398c0bf1` on Arcscan and follow `openMarket → bet → resolve → claim / claimCreator`.
-3. **Review the repo:** `forge test -vvv` runs 27/27 tests; CI covers Foundry fmt/build/tests plus frontend lint/build.
+3. **Review the repo:** `forge test -vvv` runs 28/28 tests (incl. a fuzz conservation invariant); CI covers Foundry fmt/build/tests plus frontend lint/build.
 4. **Watch the demo:** the 2-3 minute walkthrough follows [`docs/demo-script.md`](docs/demo-script.md); final submission prep lives in [`docs/submission-checklist.md`](docs/submission-checklist.md).
 
 ```
