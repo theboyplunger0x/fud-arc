@@ -24,14 +24,20 @@ const PYTH = {
   EURUSD: "a995d00bb36a63cef7fd2c287dc105fc8f3d93779f062f09551b0af3e81ec30b",
 } as const;
 
-// Placeholder seed keyed by on-chain market id. Markets without an entry (and not
-// returned by the endpoint) fall back to a generic card — correct + honest.
-export const SEED_META: Record<number, MarketMeta> = {
+// Placeholder example data so the card design is visible in LOCAL PREVIEW only.
+// OFF by default → honest in prod: the synthetic on-chain markets (#1-4, opened
+// operator-vs-operator as escrow demos) are NOT real assets, so labeling them
+// would mislead. Real markets are labeled solely by the bot's /arc/markets-meta
+// endpoint. Enable locally with NEXT_PUBLIC_DEMO_SEED=1 to preview the design.
+const DEMO_SEED: Record<number, MarketMeta> = {
   4: { ticker: "EUR/USD", kind: "fx", side: "long", timeframe: "1w", pythId: PYTH.EURUSD, anchor: 1.145 },
   3: { ticker: "BTC", kind: "crypto", side: "long", timeframe: "1d", pythId: PYTH.BTC, anchor: 62000 },
   2: { ticker: "ETH", kind: "crypto", side: "long", timeframe: "4h", pythId: PYTH.ETH, anchor: 2400 },
   1: { ticker: "SOL", kind: "crypto", side: "short", timeframe: "1d", pythId: PYTH.SOL, anchor: 150 },
 };
+
+export const SEED_META: Record<number, MarketMeta> =
+  process.env.NEXT_PUBLIC_DEMO_SEED === "1" ? DEMO_SEED : {};
 
 const META_URL = process.env.NEXT_PUBLIC_ARC_META_URL;
 

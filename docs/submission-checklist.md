@@ -35,7 +35,7 @@ Expected result: Foundry green, frontend lint/build green, no contract redeploy 
 - [ ] Deployer/operator key funded with Arc testnet USDC for gas and ERC-20 escrow.
 - [ ] At least one **LIVE** market visible in the frontend.
 - [ ] At least one **resolved** market visible with a nonzero fee / creator cut.
-- [ ] (Optional) Show **multi-asset**: type an FX pair (e.g. `EUR/USD`) — priced off-chain via Pyth.
+- [ ] (Optional) Show **multi-asset**: type an FX pair (e.g. `EUR/USD`) — settled by reading **Pyth on-chain on Arc** (Hermes off-chain only as the live UI ticker).
 - [ ] Explorer tabs prepared for the contract and the key txs: `openMarket`, `bet`, `resolve`, `claim`, `claimCreator`.
 - [ ] Telegram bot on `arc-demo` branch running with `ARC_DEMO_ENABLED=1`.
 - [ ] GenLayer path shown if available; fallback resolution phrased as demo fallback, not core ownership.

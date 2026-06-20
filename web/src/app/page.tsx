@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import ThemeToggle from "@/components/ThemeToggle";
 import MarketCard from "@/components/MarketCard";
-import { readMarkets, MARKET_ADDRESS, EXPLORER, type Market } from "@/lib/arc";
+import { readMarkets, usd, MARKET_ADDRESS, EXPLORER, type Market } from "@/lib/arc";
 import { SEED_META, fetchRemoteMeta, pythIdsOf, type MarketMeta } from "@/lib/marketMeta";
 import { fetchPythLatestMany, type PythPrice } from "@/lib/pyth";
 
@@ -60,6 +60,10 @@ export default function Home() {
   }, []);
 
   const sorted = markets ? [...markets].sort((a, b) => b.id - a.id) : null;
+  const creatorEarned = (markets ?? []).reduce(
+    (s, m) => (m.outcome === 1 || m.outcome === 2 ? s + (m.fee * BigInt(2000)) / BigInt(10000) : s),
+    BigInt(0),
+  );
   const muted = dk ? "text-white/40" : "text-gray-400";
   const label = `text-[10px] font-black uppercase tracking-[0.18em] ${dk ? "text-white/30" : "text-gray-400"}`;
 
@@ -96,6 +100,11 @@ export default function Home() {
           >
             {shortAddr(MARKET_ADDRESS)} ↗
           </a>
+          {creatorEarned > BigInt(0) && (
+            <span className={`text-[11px] font-bold px-3 py-1 rounded-full ${dk ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-300" : "bg-emerald-50 border border-emerald-200 text-emerald-700"}`}>
+              💸 Creators earned ${usd(creatorEarned)}
+            </span>
+          )}
         </div>
 
         {/* Markets */}

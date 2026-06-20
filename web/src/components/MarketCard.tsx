@@ -70,8 +70,12 @@ export default function MarketCard({ market: m, meta, live, now, dk, index }: Ma
   const totalNum = longNum + shortNum;
   const longPct = totalNum > 0 ? (longNum / totalNum) * 100 : 50;
   const shortPct = totalNum > 0 ? (shortNum / totalNum) * 100 : 50;
-  const longMult = longNum > 0 ? totalNum / longNum : 0;
-  const shortMult = shortNum > 0 ? totalNum / shortNum : 0;
+  // Payout multiplier on a winning side: your stake back + the loser pool net of
+  // the 10% protocol fee (FEE_BPS), pro-rata. Equal pools → 1.9x, not 2.0x.
+  const FEE_KEEP = 0.9; // 1 - FEE_BPS/BPS (10% skimmed from the loser pool at resolve)
+  const longMult = longNum > 0 ? (longNum + shortNum * FEE_KEEP) / longNum : 0;
+  const shortMult = shortNum > 0 ? (shortNum + longNum * FEE_KEEP) / shortNum : 0;
+  const creatorCut = (m.fee * BigInt(2000)) / BigInt(10000); // opener earns 20% of the fee (OPENER_CUT_BPS)
 
   const badge = statusBadge(m, now, winner, dk);
 
@@ -112,7 +116,9 @@ export default function MarketCard({ market: m, meta, live, now, dk, index }: Ma
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
           {meta ? (
-            <span className="text-[18px] font-black leading-none tracking-tight">${meta.ticker}</span>
+            <span className="text-[18px] font-black leading-none tracking-tight">
+              {meta.kind === "fx" ? meta.ticker : `$${meta.ticker}`}
+            </span>
           ) : (
             <span className="text-[15px] font-black leading-none tracking-tight">Market #{m.id}</span>
           )}
@@ -228,11 +234,21 @@ export default function MarketCard({ market: m, meta, live, now, dk, index }: Ma
         </div>
       </div>
 
-      {/* META ROW */}
-      <div className={`flex justify-between items-center text-[10px] font-bold ${mutedTxt}`}>
-        <span className="font-mono">opener {shortAddr(m.opener)}</span>
-        <span className={isDone ? (winner === "short" ? "text-red-400" : "text-emerald-400") : ""}>
-          {isDone ? `fee $${usd(m.fee)} · creator cut` : "fee skimmed on resolve"}
+      {/* CREATOR ROW — the caller who opened the market earns the cut (the RFB #6 hook) */}
+      <div className={`flex justify-between items-center gap-2 rounded-lg px-2.5 py-1.5 ${dk ? "bg-emerald-500/[0.06]" : "bg-emerald-50"}`}>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${dk ? "text-emerald-300 bg-emerald-500/20" : "text-emerald-700 bg-emerald-100"}`}>
+            creator
+          </span>
+          <span className={`font-mono text-[11px] font-bold ${dk ? "text-white/70" : "text-gray-700"}`}>{shortAddr(m.opener)}</span>
+          {meta?.side && (
+            <span className={`text-[10px] font-black ${meta.side === "long" ? "text-emerald-400" : "text-red-400"}`}>
+              {meta.side === "long" ? "▲" : "▼"}
+            </span>
+          )}
+        </div>
+        <span className={`text-[11px] font-black shrink-0 ${winner ? "text-emerald-400" : dk ? "text-white/40" : "text-gray-500"}`}>
+          {winner ? `earned $${usd(creatorCut)}` : isDone ? "—" : "earns 20% of fee"}
         </span>
       </div>
     </motion.div>

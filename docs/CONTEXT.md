@@ -79,12 +79,13 @@ Goal: don't stay token-only; add FX + (later) stocks alongside crypto = "una bom
 - **Price source = pull oracle, NOT StableFX.** StableFX is a permissioned
   (KYB/AML institutions-only) RFQ **swap** rail, only prices USDC↔EURC, no
   read-only price endpoint → useless as a settlement feed. RULED OUT for the core.
-- **On Arc specifically, Stork is the CONFIRMED-deployed pull oracle**
-  (testnet `0xacC0a0cF13571d30B4b8637996F5D6D774d4fd62`, covers crypto + FX).
-  **Pyth** has the best coverage (~3,059 feeds: crypto/FX/equities/metals) and
-  FUD is conceptually wired for it, but Pyth is **named on Arc's oracle page yet
-  absent from Pyth's own EVM contract list → VERIFY at the 19/26 session.**
-  Both are the same pull pattern (push signed update → read).
+- **VERIFIED 2026-06-19 on Arc testnet: Pyth IS deployed** at
+  `0x2880aB155794e7179c9eE2e38200202908C17B43` — `getPriceUnsafe` reads EUR/USD +
+  BTC/USD on-chain with no push/fee/VAA needed. **FX markets settle by reading
+  Pyth on-chain on Arc** (Hermes off-chain is only the live UI ticker / fallback).
+  Stork is also deployed (`0xacC0a0cF…`) but has **no FX feed populated** (EUR/USD
+  reverts NotFound) + 5-6d-stale crypto → not usable. RedStone not on Arc.
+  **Decision: Pyth, not Stork.**
 - **Backend is close:** prod FUD already settles synthetic MULTI markets (no CA,
   Pyth/Coinbase canonical) for BTC/ETH/SOL. Adding EUR/USD or AAPL ≈ whitelist
   rows, near-zero oracle changes. The creation engine already accepts
