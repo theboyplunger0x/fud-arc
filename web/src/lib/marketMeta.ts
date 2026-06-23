@@ -14,6 +14,9 @@ export interface MarketMeta {
   timeframe: string; // e.g. "15m" / "4H" / "7D" (from the bot)
   pythId: string | null; // Pyth feed id for the live price (hex, no 0x) — null for long-tail tokens
   anchor?: number; // entry/anchor price at open (from the bot)
+  caller?: string; // social: the handle that made the call
+  call?: string; // social: the call's thesis / take
+  takes?: { user: string; text: string; side: "long" | "short" }[]; // social: participants' takes
 }
 
 // Pyth feed ids (hex, no 0x).
@@ -30,10 +33,26 @@ const PYTH = {
 // would mislead. Real markets are labeled solely by the bot's /arc/markets-meta
 // endpoint. Enable locally with NEXT_PUBLIC_DEMO_SEED=1 to preview the design.
 const DEMO_SEED: Record<number, MarketMeta> = {
-  4: { ticker: "EUR/USD", kind: "fx", side: "long", timeframe: "1w", pythId: PYTH.EURUSD, anchor: 1.145 },
-  3: { ticker: "BTC", kind: "crypto", side: "long", timeframe: "1d", pythId: PYTH.BTC, anchor: 62000 },
-  2: { ticker: "ETH", kind: "crypto", side: "long", timeframe: "4h", pythId: PYTH.ETH, anchor: 2400 },
-  1: { ticker: "SOL", kind: "crypto", side: "short", timeframe: "1d", pythId: PYTH.SOL, anchor: 150 },
+  4: {
+    ticker: "EUR/USD", kind: "fx", side: "long", timeframe: "1w", pythId: PYTH.EURUSD, anchor: 1.145,
+    caller: "marcos", call: "Euro's coiling — pops after the CPI print 🇪🇺",
+    takes: [{ user: "satsdani", text: "dollar's too strong rn, fading this", side: "short" }, { user: "jdog", text: "agree, long euro here", side: "long" }],
+  },
+  3: {
+    ticker: "BTC", kind: "crypto", side: "long", timeframe: "1d", pythId: PYTH.BTC, anchor: 62000,
+    caller: "0xplunger", call: "BTC reclaiming the range — sending it 🚀",
+    takes: [{ user: "bagholder", text: "looks toppy, short", side: "short" }],
+  },
+  2: {
+    ticker: "ETH", kind: "crypto", side: "long", timeframe: "4h", pythId: PYTH.ETH, anchor: 2400,
+    caller: "vitalikfan", call: "ETH about to run, flippening szn",
+    takes: [{ user: "maxipad", text: "BTC dominance says no", side: "short" }],
+  },
+  1: {
+    ticker: "SOL", kind: "crypto", side: "short", timeframe: "1d", pythId: PYTH.SOL, anchor: 150,
+    caller: "degenmike", call: "SOL overheated — fading the pump",
+    takes: [{ user: "solmaxi", text: "ngmi, SOL only up", side: "long" }],
+  },
 };
 
 export const SEED_META: Record<number, MarketMeta> =
@@ -48,6 +67,9 @@ interface RemoteMeta {
   timeframe: string;
   anchor: number;
   pythId: string | null;
+  caller?: string;
+  call?: string;
+  takes?: { user: string; text: string; side: "long" | "short" }[];
 }
 
 /**
@@ -70,6 +92,9 @@ export async function fetchRemoteMeta(): Promise<Record<number, MarketMeta>> {
         timeframe: m.timeframe,
         pythId: m.pythId,
         anchor: m.anchor,
+        caller: m.caller,
+        call: m.call,
+        takes: m.takes,
       };
     }
     return out;

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import ThemeToggle from "@/components/ThemeToggle";
+import ConnectButton from "@/components/ConnectButton";
+import DepositButton from "@/components/DepositButton";
 import MarketCard from "@/components/MarketCard";
 import { readMarkets, usd, MARKET_ADDRESS, EXPLORER, type Market } from "@/lib/arc";
 import { SEED_META, fetchRemoteMeta, pythIdsOf, type MarketMeta } from "@/lib/marketMeta";
@@ -69,20 +71,26 @@ export default function Home() {
 
   return (
     <main className={`min-h-dvh ${dk ? "bg-[#0A0A0A] text-white" : "bg-white text-gray-900"}`}>
-      <div className="mx-auto max-w-2xl px-5 py-12">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <span className="text-[40px] font-black tracking-[-0.04em] leading-none select-none">
+      {/* Header bar — sticky */}
+      <header className={`sticky top-0 z-20 border-b backdrop-blur-md ${dk ? "bg-[#0A0A0A]/80 border-white/[0.07]" : "bg-white/85 border-gray-200"}`}>
+        <div className="mx-auto max-w-7xl px-5 h-14 flex items-center justify-between">
+          <span className="text-[24px] font-black tracking-[-0.03em] leading-none select-none">
             FUD<span className="text-emerald-400">.</span>
           </span>
-          <ThemeToggle />
+          <div className="flex items-center gap-2.5">
+            <DepositButton dk={dk} />
+            <ConnectButton dk={dk} markets={markets ?? []} />
+            <ThemeToggle />
+          </div>
         </div>
+      </header>
 
-        <h1 className="mt-6 text-[24px] sm:text-[30px] font-black leading-[1.1] tracking-tight">
+      <div className="mx-auto max-w-7xl px-5 pt-8 pb-12">
+        <h1 className="text-[24px] sm:text-[30px] font-black leading-[1.1] tracking-tight">
           Social calls become <span className="text-emerald-400">P2P</span> markets on{" "}
           <span className="text-emerald-400">Arc</span>.
         </h1>
-        <p className={`mt-3 text-[13px] leading-relaxed ${dk ? "text-white/50" : "text-gray-600"}`}>
+        <p className={`mt-3 max-w-2xl text-[13px] leading-relaxed ${dk ? "text-white/50" : "text-gray-600"}`}>
           An agent turns a Telegram call into a USDC conviction market — open, take the other side,
           resolve, pay out — all on-chain. The creator who made the call earns a cut.
         </p>
@@ -110,33 +118,35 @@ export default function Home() {
         {/* Markets */}
         <h2 className={`mt-10 ${label}`}>Markets on-chain</h2>
 
-        <div className="mt-4 space-y-2.5">
-          {error && (
-            <div className={`rounded-2xl border p-4 text-[12px] ${dk ? "border-red-500/30 bg-red-500/[0.06] text-red-300" : "border-red-200 bg-red-50 text-red-700"}`}>
-              Couldn&apos;t reach Arc RPC: {error}
-            </div>
-          )}
+        {error && (
+          <div className={`mt-4 rounded-2xl border p-4 text-[12px] ${dk ? "border-red-500/30 bg-red-500/[0.06] text-red-300" : "border-red-200 bg-red-50 text-red-700"}`}>
+            Couldn&apos;t reach Arc RPC: {error}
+          </div>
+        )}
 
-          {!error && sorted === null && (
-            <div className={`rounded-2xl border p-4 text-[12px] ${dk ? "border-white/8 bg-white/[0.03] text-white/40" : "border-gray-200 bg-gray-50 text-gray-400"}`}>
-              Reading markets from Arc…
-            </div>
-          )}
+        {!error && sorted === null && (
+          <div className={`mt-4 rounded-2xl border p-4 text-[12px] ${dk ? "border-white/8 bg-white/[0.03] text-white/40" : "border-gray-200 bg-gray-50 text-gray-400"}`}>
+            Reading markets from Arc…
+          </div>
+        )}
 
-          {!error && sorted !== null && sorted.length === 0 && (
-            <div className={`rounded-2xl border p-4 text-[12px] ${dk ? "border-white/8 bg-white/[0.03] text-white/40" : "border-gray-200 bg-gray-50 text-gray-400"}`}>
-              No markets yet — open one from the Telegram bot.
-            </div>
-          )}
+        {!error && sorted !== null && sorted.length === 0 && (
+          <div className={`mt-4 rounded-2xl border p-4 text-[12px] ${dk ? "border-white/8 bg-white/[0.03] text-white/40" : "border-gray-200 bg-gray-50 text-gray-400"}`}>
+            No markets yet — open one from the Telegram bot.
+          </div>
+        )}
 
-          {sorted?.map((m, i) => {
-            const mm = meta[m.id] ?? null;
-            const live = mm?.pythId ? prices[mm.pythId.replace(/^0x/, "")] ?? null : null;
-            return (
-              <MarketCard key={m.id} market={m} meta={mm} live={live} now={now} dk={dk} index={i} />
-            );
-          })}
-        </div>
+        {sorted && sorted.length > 0 && (
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {sorted.map((m, i) => {
+              const mm = meta[m.id] ?? null;
+              const live = mm?.pythId ? prices[mm.pythId.replace(/^0x/, "")] ?? null : null;
+              return (
+                <MarketCard key={m.id} market={m} meta={mm} live={live} now={now} dk={dk} index={i} />
+              );
+            })}
+          </div>
+        )}
 
         {/* How it works */}
         <h2 className={`mt-12 ${label}`}>How it works</h2>
