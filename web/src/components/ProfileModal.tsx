@@ -4,8 +4,9 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { useDisconnect, useReadContract } from "wagmi";
-import { USDC_ADDRESS, usd, type Market } from "@/lib/arc";
+import { USDC_ADDRESS, type Market } from "@/lib/arc";
 import { useProfile, PROFILE_COLORS } from "@/hooks/useProfile";
+import { useCurrency } from "./CurrencyProvider";
 
 const BAL_ABI = [
   { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ type: "uint256" }] },
@@ -17,6 +18,7 @@ function shortAddr(a: string): string {
 
 export default function ProfileModal({ address, dk, markets, onClose }: { address: string; dk: boolean; markets: Market[]; onClose: () => void }) {
   const { profile, save } = useProfile(address);
+  const { fmt } = useCurrency();
   const { disconnect } = useDisconnect();
   const { data: bal } = useReadContract({
     address: USDC_ADDRESS,
@@ -80,7 +82,7 @@ export default function ProfileModal({ address, dk, markets, onClose }: { addres
           <div className="grid grid-cols-3 gap-2 mb-4">
             <div className={statCard}>
               <p className={`${lbl} mb-0.5`}>Balance</p>
-              <p className={`text-[16px] font-black ${strong}`}>${bal != null ? usd(bal as bigint) : "—"}</p>
+              <p className={`text-[16px] font-black ${strong}`}>{bal != null ? fmt(bal as bigint) : "—"}</p>
             </div>
             <div className={statCard}>
               <p className={`${lbl} mb-0.5`}>Markets</p>
@@ -88,7 +90,7 @@ export default function ProfileModal({ address, dk, markets, onClose }: { addres
             </div>
             <div className={statCard}>
               <p className={`${lbl} mb-0.5`}>Vol</p>
-              <p className={`text-[16px] font-black ${strong}`}>${usd(createdVol)}</p>
+              <p className={`text-[16px] font-black ${strong}`}>{fmt(createdVol)}</p>
             </div>
           </div>
 

@@ -6,6 +6,7 @@ export default function ThemeToggle() {
   return (
     <button
       onClick={toggle}
+      suppressHydrationWarning
       aria-label={dk ? "Switch to light" : "Switch to dark"}
       className={`inline-flex h-9 w-9 items-center justify-center rounded-full border text-sm transition ${
         dk
@@ -13,7 +14,7 @@ export default function ThemeToggle() {
           : "border-gray-200 bg-gray-100 hover:bg-gray-200 text-gray-900"
       }`}
     >
-      {dk ? "☀" : "☾"}
+      <span suppressHydrationWarning>{dk ? "☀" : "☾"}</span>
     </button>
   );
 }

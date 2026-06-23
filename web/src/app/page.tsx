@@ -5,8 +5,11 @@ import { useAppTheme } from "@/hooks/useAppTheme";
 import ThemeToggle from "@/components/ThemeToggle";
 import ConnectButton from "@/components/ConnectButton";
 import DepositButton from "@/components/DepositButton";
+import CurrencySelector from "@/components/CurrencySelector";
+import FxStrip from "@/components/FxStrip";
+import { useCurrency } from "@/components/CurrencyProvider";
 import MarketCard from "@/components/MarketCard";
-import { readMarkets, usd, MARKET_ADDRESS, EXPLORER, type Market } from "@/lib/arc";
+import { readMarkets, MARKET_ADDRESS, EXPLORER, type Market } from "@/lib/arc";
 import { SEED_META, fetchRemoteMeta, pythIdsOf, type MarketMeta } from "@/lib/marketMeta";
 import { fetchPythLatestMany, type PythPrice } from "@/lib/pyth";
 
@@ -16,6 +19,7 @@ function shortAddr(a: string): string {
 
 export default function Home() {
   const { dk } = useAppTheme();
+  const { fmt } = useCurrency();
   const [markets, setMarkets] = useState<Market[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState<number>(() => Math.floor(Date.now() / 1000));
@@ -78,6 +82,7 @@ export default function Home() {
             FUD<span className="text-emerald-400">.</span>
           </span>
           <div className="flex items-center gap-2.5">
+            <CurrencySelector dk={dk} />
             <DepositButton dk={dk} />
             <ConnectButton dk={dk} markets={markets ?? []} />
             <ThemeToggle />
@@ -110,10 +115,12 @@ export default function Home() {
           </a>
           {creatorEarned > BigInt(0) && (
             <span className={`text-[11px] font-bold px-3 py-1 rounded-full ${dk ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-300" : "bg-emerald-50 border border-emerald-200 text-emerald-700"}`}>
-              💸 Creators earned ${usd(creatorEarned)}
+              💸 Creators earned {fmt(creatorEarned)}
             </span>
           )}
         </div>
+
+        <FxStrip dk={dk} />
 
         {/* Markets */}
         <h2 className={`mt-10 ${label}`}>Markets on-chain</h2>

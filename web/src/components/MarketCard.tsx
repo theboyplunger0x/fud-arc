@@ -1,10 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { usd, type Market } from "@/lib/arc";
+import { type Market } from "@/lib/arc";
 import type { MarketMeta } from "@/lib/marketMeta";
 import type { PythPrice } from "@/lib/pyth";
 import BetPanel from "./BetPanel";
+import { useCurrency } from "./CurrencyProvider";
 
 interface MarketCardProps {
   market: Market;
@@ -54,6 +55,7 @@ function statusBadge(market: Market, now: number, winner: Winner, dk: boolean) {
 }
 
 export default function MarketCard({ market: m, meta, live, now, dk, index }: MarketCardProps) {
+  const { fmt } = useCurrency();
   const isResolved = m.outcome === 1 || m.outcome === 2;
   const winner: Winner = m.outcome === 1 ? "long" : m.outcome === 2 ? "short" : null;
   const isDone = isResolved || m.outcome === 3;
@@ -218,7 +220,7 @@ export default function MarketCard({ market: m, meta, live, now, dk, index }: Ma
               <span className="text-[11px] font-black text-red-400">▼ SHORT</span>
               {winner === "short" && <span className="text-[9px] font-bold text-red-400 bg-red-500/15 px-1.5 rounded-full">winner</span>}
             </div>
-            <span className="text-[16px] font-black">${usd(m.shortPool)}</span>
+            <span className="text-[16px] font-black">{fmt(m.shortPool)}</span>
             {!isDone && shortNum > 0 && <p className={`text-[10px] font-bold ${mutedTxt}`}>→ {shortMult.toFixed(2)}x if right</p>}
           </div>
           <div className={`text-right ${isResolved && winner === "short" ? "opacity-40" : ""}`}>
@@ -226,7 +228,7 @@ export default function MarketCard({ market: m, meta, live, now, dk, index }: Ma
               {winner === "long" && <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/15 px-1.5 rounded-full">winner</span>}
               <span className="text-[11px] font-black text-emerald-400">LONG ▲</span>
             </div>
-            <span className="text-[16px] font-black">${usd(m.longPool)}</span>
+            <span className="text-[16px] font-black">{fmt(m.longPool)}</span>
             {!isDone && longNum > 0 && <p className={`text-[10px] font-bold ${mutedTxt}`}>{longMult.toFixed(2)}x if right ←</p>}
           </div>
         </div>
@@ -234,9 +236,9 @@ export default function MarketCard({ market: m, meta, live, now, dk, index }: Ma
 
       {/* META ROW — volume + creator cut (RFB #6) */}
       <div className={`flex justify-between items-center text-[10px] font-bold ${mutedTxt}`}>
-        <span className="tabular-nums">${usd(m.longPool + m.shortPool)} vol</span>
+        <span className="tabular-nums">{fmt(m.longPool + m.shortPool)} vol</span>
         <span className={isDone && winner ? "text-emerald-400" : ""}>
-          {isDone ? (winner ? `creator earned $${usd(creatorCut)}` : "—") : "creator earns 20% of fee"}
+          {isDone ? (winner ? `creator earned ${fmt(creatorCut)}` : "—") : "creator earns 20% of fee"}
         </span>
       </div>
 

@@ -1,23 +1,79 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
+import { useAccount } from "wagmi";
+import { FUNDING_CURRENCIES } from "@/lib/currency";
 
 const FAUCET = "https://faucet.circle.com";
 
-// Stablecoins on Arc (StableFX/BUFI coverage). Minimal: ticker + name + flag.
-const STABLECOINS = [
-  { ticker: "USDC", name: "US Dollar", flag: "🇺🇸" },
-  { ticker: "EURC", name: "Euro", flag: "🇪🇺" },
-  { ticker: "MXNB", name: "Mexican Peso", flag: "🇲🇽" },
-  { ticker: "QCAD", name: "Canadian Dollar", flag: "🇨🇦" },
-  { ticker: "AUDF", name: "Australian Dollar", flag: "🇦🇺" },
-];
+interface BoardRow {
+  cur: string;
+  ok: boolean;
+  buyAmount?: string;
+  rate?: string;
+}
+
+type Direction = "fund" | "cashout";
+
+const n2 = (s: string) => Number(s).toLocaleString("en-US", { maximumFractionDigits: 2 });
+const n4 = (s: string) => Number(s).toFixed(4);
 
 export default function DepositModal({ dk, onClose }: { dk: boolean; onClose: () => void }) {
+  const { address } = useAccount();
+  const [direction, setDirection] = useState<Direction>("fund");
+  const [amount, setAmount] = useState("100");
+  const [rows, setRows] = useState<BoardRow[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const bg = dk ? "bg-[#111] border-white/10" : "bg-white border-gray-200";
   const muted = dk ? "text-white/40" : "text-gray-400";
   const strong = dk ? "text-white" : "text-gray-900";
+  const amountValid = Number(amount) > 0;
+  const cashout = direction === "cashout";
+
+  // Debounced live board: one amount → quotes for every regional currency at once.
+  useEffect(() => {
+    if (!(Number(amount) > 0)) return;
+    let active = true;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      setLoading(true);
+      setError(null);
+      fetch("/api/fx-board", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, recipient: address, direction }),
+        signal: ctrl.signal,
+      })
+        .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+        .then(({ ok, data }) => {
+          if (!active) return;
+          if (ok && Array.isArray(data.quotes)) setRows(data.quotes);
+          else setError("Quotes unavailable");
+        })
+        .catch((e) => {
+          if (active && !(e instanceof DOMException && e.name === "AbortError")) setError("Quotes unavailable");
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    }, 400);
+    return () => {
+      active = false;
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [amount, address, direction]);
+
+  function switchTo(d: Direction) {
+    if (d === direction) return;
+    setDirection(d);
+    setRows(null); // avoid rendering the previous direction's units while refetching
+    setError(null);
+  }
 
   if (typeof document === "undefined") return null;
   return createPortal(
@@ -56,26 +112,87 @@ export default function DepositModal({ dk, onClose }: { dk: boolean; onClose: ()
             Get test USDC from the faucet →
           </a>
           <p className={`text-[10px] leading-relaxed mt-1.5 mb-4 ${muted}`}>
-            At faucet.circle.com: pick <span className="font-bold">Arc Testnet</span> + <span className="font-bold">USDC</span>, paste your wallet address.
+            At faucet.circle.com: pick <span className="font-bold">Arc Testnet</span> + <span className="font-bold">USDC</span>, paste your address.
           </p>
 
-          {/* Supported assets */}
-          <p className={`text-[10px] font-black uppercase tracking-widest ${muted}`}>Supported stablecoins</p>
-          <p className={`text-[11px] mb-2 ${muted}`}>
-            Fund with any → trade in USDC <span className="opacity-60">· any-stable swap coming via StableFX</span>
-          </p>
-          <div className="space-y-1.5">
-            {STABLECOINS.map((s) => (
-              <div
-                key={s.ticker}
-                className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${dk ? "bg-white/[0.03]" : "bg-gray-50"}`}
+          {/* Multi-currency board — fund from / cash out to any stablecoin (live StableFX) */}
+          <div className="flex items-center justify-between">
+            <p className={`text-[10px] font-black uppercase tracking-widest ${muted}`}>
+              {cashout ? "Cash out to any stablecoin" : "Fund from any stablecoin"}
+            </p>
+            <span className={`text-[9px] font-bold ${dk ? "text-emerald-400/70" : "text-emerald-600/70"}`}>● live · StableFX on Arc</span>
+          </div>
+
+          {/* Direction tabs */}
+          <div className={`mt-2 flex gap-1 p-1 rounded-xl ${dk ? "bg-white/[0.04]" : "bg-gray-100"}`}>
+            {(["fund", "cashout"] as Direction[]).map((d) => (
+              <button
+                key={d}
+                onClick={() => switchTo(d)}
+                className={`flex-1 py-1.5 rounded-lg text-[11px] font-black transition ${
+                  direction === d
+                    ? dk ? "bg-white/10 text-white" : "bg-white text-gray-900 shadow-sm"
+                    : dk ? "text-white/40 hover:text-white/70" : "text-gray-400 hover:text-gray-600"
+                }`}
               >
-                <span className="text-[16px] leading-none">{s.flag}</span>
-                <span className={`text-[12px] font-black ${strong}`}>{s.ticker}</span>
-                <span className={`text-[11px] font-bold ${muted}`}>{s.name}</span>
-              </div>
+                {d === "fund" ? "Fund" : "Cash out"}
+              </button>
             ))}
           </div>
+
+          <div className="relative mt-2 mb-2">
+            <input
+              type="number"
+              inputMode="decimal"
+              placeholder={cashout ? "USDC amount" : "amount"}
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className={`w-full text-[14px] font-bold px-3 py-2.5 rounded-xl outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none ${dk ? "bg-white/[0.05] text-white placeholder:text-white/30" : "bg-gray-100 text-gray-900 placeholder:text-gray-400"}`}
+            />
+          </div>
+
+          <div className={`space-y-1 transition-opacity ${loading ? "opacity-50" : "opacity-100"}`}>
+            {FUNDING_CURRENCIES.map((a) => {
+              const q = rows?.find((r) => r.cur === a.code);
+              return (
+                <div
+                  key={a.code}
+                  className={`flex items-center justify-between rounded-xl px-3 py-2 ${dk ? "bg-white/[0.03]" : "bg-gray-50"}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[15px] leading-none">{a.flag}</span>
+                    <div>
+                      <div className={`text-[12px] font-black leading-none ${strong}`}>{a.code}</div>
+                      <div className={`text-[9px] ${muted}`}>{a.name}</div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    {q?.ok && q.buyAmount && q.rate && Number(q.buyAmount) > 0 && Number(q.rate) > 0 ? (
+                      <>
+                        <div className={`text-[13px] font-black ${dk ? "text-emerald-300" : "text-emerald-700"}`}>
+                          ≈ {n2(q.buyAmount)} {cashout ? a.code : "USDC"}
+                        </div>
+                        <div className={`text-[9px] ${muted}`}>
+                          {cashout ? `1 USDC = ${n4(q.rate)} ${a.code}` : `1 ${a.code} = ${n4(q.rate)}`}
+                        </div>
+                      </>
+                    ) : !amountValid ? (
+                      <div className={`text-[11px] ${muted}`}>—</div>
+                    ) : loading && !rows ? (
+                      <div className={`text-[12px] ${muted}`}>…</div>
+                    ) : (
+                      <div className={`text-[11px] ${muted}`}>—</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className={`text-[10px] leading-relaxed mt-2 ${muted}`}>
+            Live pricing today · <span className="font-bold">1-tap swap unlocks with KYB</span>.
+          </p>
+          {error && <p className={`text-[10px] font-bold text-center mt-2 ${dk ? "text-red-400" : "text-red-600"}`}>{error}</p>}
         </div>
       </motion.div>
     </motion.div>,
