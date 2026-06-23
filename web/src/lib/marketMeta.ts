@@ -55,8 +55,11 @@ const DEMO_SEED: Record<number, MarketMeta> = {
   },
 };
 
+const DEMO_SEED_ENABLED =
+  process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_DEMO_SEED === "1";
+
 export const SEED_META: Record<number, MarketMeta> =
-  process.env.NEXT_PUBLIC_DEMO_SEED === "1" ? DEMO_SEED : {};
+  DEMO_SEED_ENABLED ? DEMO_SEED : {};
 
 const META_URL = process.env.NEXT_PUBLIC_ARC_META_URL;
 

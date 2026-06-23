@@ -14,6 +14,7 @@ interface MarketCardProps {
   now: number; // unix seconds
   dk: boolean;
   index: number;
+  onBetDone?: () => void | Promise<void>;
 }
 
 type Winner = "long" | "short" | null;
@@ -54,7 +55,7 @@ function statusBadge(market: Market, now: number, winner: Winner, dk: boolean) {
   return { text: "CLOSED", cls: dk ? "text-white/50 bg-white/10" : "text-gray-600 bg-gray-100", live: false };
 }
 
-export default function MarketCard({ market: m, meta, live, now, dk, index }: MarketCardProps) {
+export default function MarketCard({ market: m, meta, live, now, dk, index, onBetDone }: MarketCardProps) {
   const { fmt } = useCurrency();
   const isResolved = m.outcome === 1 || m.outcome === 2;
   const winner: Winner = m.outcome === 1 ? "long" : m.outcome === 2 ? "short" : null;
@@ -246,7 +247,15 @@ export default function MarketCard({ market: m, meta, live, now, dk, index }: Ma
       <div className="flex-1" />
 
       {/* BET — back a side on a live market (wallet-gated, on-chain) */}
-      {!isDone && !closed && <BetPanel marketId={m.id} dk={dk} longMult={longMult} shortMult={shortMult} />}
+      {!isDone && !closed && (
+        <BetPanel
+          marketId={m.id}
+          dk={dk}
+          longMult={longMult}
+          shortMult={shortMult}
+          onDone={onBetDone}
+        />
+      )}
     </motion.div>
   );
 }

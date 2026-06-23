@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppTheme } from "@/hooks/useAppTheme";
 import ThemeToggle from "@/components/ThemeToggle";
 import ConnectButton from "@/components/ConnectButton";
@@ -26,6 +26,16 @@ export default function Home() {
   const [prices, setPrices] = useState<Record<string, PythPrice>>({});
   const [meta, setMeta] = useState<Record<number, MarketMeta>>(SEED_META);
   const metaRef = useRef<Record<number, MarketMeta>>(SEED_META);
+
+  const refreshMarkets = useCallback(async () => {
+    try {
+      const m = await readMarkets();
+      setMarkets(m);
+      setError(null);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to read Arc");
+    }
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -149,7 +159,16 @@ export default function Home() {
               const mm = meta[m.id] ?? null;
               const live = mm?.pythId ? prices[mm.pythId.replace(/^0x/, "")] ?? null : null;
               return (
-                <MarketCard key={m.id} market={m} meta={mm} live={live} now={now} dk={dk} index={i} />
+                <MarketCard
+                  key={m.id}
+                  market={m}
+                  meta={mm}
+                  live={live}
+                  now={now}
+                  dk={dk}
+                  index={i}
+                  onBetDone={refreshMarkets}
+                />
               );
             })}
           </div>
