@@ -112,6 +112,21 @@ export default function Home() {
           resolve, pay out — all on-chain. The creator who made the call earns a cut.
         </p>
 
+        {/* Make a call — opens the Telegram agent (no wallet, no signing for the caller) */}
+        <div className="mt-4 flex flex-wrap items-center gap-2.5">
+          <a
+            href="https://t.me/FudArcBot"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-emerald-400 text-[#0A0A0A] text-[13px] font-black hover:bg-emerald-300 transition"
+          >
+            📣 Make a call →
+          </a>
+          <span className={`text-[11px] ${dk ? "text-white/40" : "text-gray-500"}`}>
+            open a market from Telegram — no wallet, no signing
+          </span>
+        </div>
+
         {/* Contract chip */}
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <span className={`text-[11px] font-bold px-3 py-1 rounded-full ${dk ? "bg-white/[0.04] border border-white/10" : "bg-gray-100 border border-gray-200"}`}>

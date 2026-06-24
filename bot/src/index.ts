@@ -25,6 +25,7 @@ const registry = new Map<number, MetaEntry>();
 
 const U = (n: number) => BigInt(Math.round(n * 1e6)); // USDC 6-dp units
 const DAY = 86400;
+const TIMEFRAMES: Record<string, number> = { "15m": 900, "1h": 3600, "24h": 86400, "7d": 604800 };
 const MAX_AMOUNT = 100;
 const MIN_AMOUNT = 0.01;
 const COOLDOWN_MS = 10_000;
@@ -38,6 +39,7 @@ async function doOpen(
   uid: number,
   asset: AssetDef,
   side: "long" | "short",
+  timeframe: string,
   amount: number,
   call?: string,
 ): Promise<void> {
@@ -64,15 +66,15 @@ async function doOpen(
   try {
     const anchor = await pythPrice(asset.pythId);
     const s: Side = side === "long" ? 0 : 1;
-    const closesAt = Math.floor(now / 1000) + DAY;
+    const closesAt = Math.floor(now / 1000) + (TIMEFRAMES[timeframe] ?? DAY);
     const { marketId } = await openAndMatch({ closesAt, openerSide: s, openerAmount: U(amount), takerAmount: U(takerAmt) });
     const caller = ctx.from?.username ?? ctx.from?.first_name ?? "anon";
     registry.set(Number(marketId), {
-      ticker: asset.ticker, kind: asset.kind, side, timeframe: "24h",
+      ticker: asset.ticker, kind: asset.kind, side, timeframe,
       pythId: asset.pythId, anchor: anchor ?? 0, caller, call: call?.slice(0, 140), takes: [],
     });
     await ctx.reply(
-      `✅ Market #${marketId} opened on Arc\n${side === "long" ? "📈 LONG" : "📉 SHORT"} ${asset.ticker} · $${amount}` +
+      `✅ Market #${marketId} opened on Arc\n${side === "long" ? "📈 LONG" : "📉 SHORT"} ${asset.ticker} · ${timeframe} · $${amount}` +
         `${call ? `\n“${call.slice(0, 140)}”` : ""}\nEntry: ${anchor ? "$" + fmtPrice(anchor) : "—"}\n\nLive → ${FE_URL}`,
     );
   } catch (e) {
@@ -93,7 +95,7 @@ async function quick(ctx: Context, side: "long" | "short"): Promise<void> {
     await ctx.reply(`Usage: /${side} <SYMBOL> [amount]\nSymbols: ${ASSET_LIST}\ne.g. /${side} BTC 1`);
     return;
   }
-  await doOpen(ctx, uid, asset, side, args[1] ? Number(args[1]) : 1);
+  await doOpen(ctx, uid, asset, side, "24h", args[1] ? Number(args[1]) : 1);
 }
 bot.command("long", (ctx) => quick(ctx, "long"));
 bot.command("short", (ctx) => quick(ctx, "short"));
@@ -101,6 +103,7 @@ bot.command("short", (ctx) => quick(ctx, "short"));
 // ── Guided flow: /open → asset → side → amount → tagline ──
 interface Draft {
   asset?: AssetDef;
+  timeframe?: string;
   side?: "long" | "short";
   amount?: number;
   awaiting?: "amount" | "tagline";
@@ -125,11 +128,11 @@ bot.command(["open", "new", "call"], async (ctx) => {
 
 async function finalize(ctx: Context, uid: number, d: Draft, call?: string): Promise<void> {
   drafts.delete(uid);
-  if (!d.asset || !d.side || !d.amount) {
+  if (!d.asset || !d.timeframe || !d.side || !d.amount) {
     await ctx.reply("Incomplete — /open to start again.");
     return;
   }
-  await doOpen(ctx, uid, d.asset, d.side, d.amount, call);
+  await doOpen(ctx, uid, d.asset, d.side, d.timeframe, d.amount, call);
 }
 
 bot.on("callback_query:data", async (ctx) => {
@@ -145,12 +148,17 @@ bot.on("callback_query:data", async (ctx) => {
   if (data.startsWith("a:")) {
     d.asset = resolveAsset(data.slice(2)) ?? undefined;
     d.awaiting = undefined;
-    await ctx.editMessageText(`${d.asset?.ticker} — pick a side:`, {
+    await ctx.editMessageText(`${d.asset?.ticker} — pick a timeframe:`, {
+      reply_markup: new InlineKeyboard().text("15m", "tf:15m").text("1h", "tf:1h").text("24h", "tf:24h").text("7d", "tf:7d"),
+    });
+  } else if (data.startsWith("tf:")) {
+    d.timeframe = data.slice(3);
+    await ctx.editMessageText(`${d.asset?.ticker} · ${d.timeframe} — pick a side:`, {
       reply_markup: new InlineKeyboard().text("📈 Long", "s:long").text("📉 Short", "s:short"),
     });
   } else if (data.startsWith("s:")) {
     d.side = data.slice(2) as "long" | "short";
-    await ctx.editMessageText(`${d.asset?.ticker} ${d.side.toUpperCase()} — amount:`, {
+    await ctx.editMessageText(`${d.asset?.ticker} ${d.side.toUpperCase()} · ${d.timeframe} — amount:`, {
       reply_markup: new InlineKeyboard().text("$1", "amt:1").text("$5", "amt:5").text("$10", "amt:10").row().text("✏️ Custom", "amt:custom"),
     });
   } else if (data.startsWith("amt:")) {
@@ -231,4 +239,13 @@ createServer((req, res) => {
 }).listen(PORT, () => console.log(`[http] markets-meta + health on :${PORT}`));
 
 bot.catch((err) => console.error("[bot] error:", (err.error as Error)?.message ?? err.message));
+
+// Register the command menu so they show up under "/" in Telegram.
+await bot.api.setMyCommands([
+  { command: "open", description: "Make a call → open a market" },
+  { command: "long", description: "Quick long (e.g. /long BTC 1)" },
+  { command: "short", description: "Quick short (e.g. /short ETH 1)" },
+  { command: "start", description: "What this bot does" },
+]);
+
 bot.start({ onStart: (me) => console.log(`[bot] @${me.username} live · operator ${operatorAddress}`) });
