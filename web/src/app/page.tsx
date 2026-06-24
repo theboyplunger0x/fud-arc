@@ -76,6 +76,8 @@ export default function Home() {
   }, []);
 
   const sorted = markets ? [...markets].sort((a, b) => b.id - a.id) : null;
+  // Only show markets we can label (seed or remote /arc/markets-meta) — hides bare synthetic ids.
+  const visible = sorted ? sorted.filter((m) => meta[m.id]) : null;
   const creatorEarned = (markets ?? []).reduce(
     (s, m) => (m.outcome === 1 || m.outcome === 2 ? s + (m.fee * BigInt(2000)) / BigInt(10000) : s),
     BigInt(0),
@@ -147,15 +149,15 @@ export default function Home() {
           </div>
         )}
 
-        {!error && sorted !== null && sorted.length === 0 && (
+        {!error && visible !== null && visible.length === 0 && (
           <div className={`mt-4 rounded-2xl border p-4 text-[12px] ${dk ? "border-white/8 bg-white/[0.03] text-white/40" : "border-gray-200 bg-gray-50 text-gray-400"}`}>
             No markets yet — open one from the Telegram bot.
           </div>
         )}
 
-        {sorted && sorted.length > 0 && (
+        {visible && visible.length > 0 && (
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {sorted.map((m, i) => {
+            {visible.map((m, i) => {
               const mm = meta[m.id] ?? null;
               const live = mm?.pythId ? prices[mm.pythId.replace(/^0x/, "")] ?? null : null;
               return (

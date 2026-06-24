@@ -58,8 +58,32 @@ const DEMO_SEED: Record<number, MarketMeta> = {
 const DEMO_SEED_ENABLED =
   process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_DEMO_SEED === "1";
 
-export const SEED_META: Record<number, MarketMeta> =
-  DEMO_SEED_ENABLED ? DEMO_SEED : {};
+// REAL markets opened on Arc (operator-funded escrow that tracks a real Pyth feed).
+// Unlike #1-4, these were opened WITH an asset + side + real entry price, so the
+// ticker/side/anchor are honest and the seed is ALWAYS on. The social copy
+// (caller/call/takes) is illustrative. Anchors = Pyth spot at open (2026-06-24).
+const REAL_SEED: Record<number, MarketMeta> = {
+  7: {
+    ticker: "EUR/USD", kind: "fx", side: "long", timeframe: "24h", pythId: PYTH.EURUSD, anchor: 1.1361,
+    caller: "satsdani", call: "Euro coiling under resistance — pops on the print 🇪🇺",
+    takes: [{ user: "maxipad", text: "dollar's too strong rn, fading", side: "short" }],
+  },
+  6: {
+    ticker: "ETH", kind: "crypto", side: "short", timeframe: "7d", pythId: PYTH.ETH, anchor: 1607,
+    caller: "0xplunger", call: "ETH can't break through here — fading the bounce.",
+    takes: [{ user: "vitalikfan", text: "no chance, flippening szn, longing it", side: "long" }],
+  },
+  5: {
+    ticker: "BTC", kind: "crypto", side: "long", timeframe: "24h", pythId: PYTH.BTC, anchor: 60666,
+    caller: "marcos", call: "BTC basing on the range low — reclaim and it runs. Long.",
+    takes: [{ user: "bagholder", text: "looks heavy, I'm on the other side", side: "short" }],
+  },
+};
+
+export const SEED_META: Record<number, MarketMeta> = {
+  ...(DEMO_SEED_ENABLED ? DEMO_SEED : {}),
+  ...REAL_SEED,
+};
 
 const META_URL = process.env.NEXT_PUBLIC_ARC_META_URL;
 
