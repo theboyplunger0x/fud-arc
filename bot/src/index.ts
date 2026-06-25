@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { Bot, InlineKeyboard, type Context } from "grammy";
 import { createServer } from "node:http";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { openAndMatch, usdcBalance, operatorAddress, type Side } from "./arc.js";
 import { resolveAsset, pythPrice, fmtPrice, ASSETS, ASSET_LIST, type AssetDef } from "./markets.js";
 
@@ -21,7 +23,33 @@ interface MetaEntry {
   call?: string;
   takes: { user: string; text: string; side: "long" | "short" }[];
 }
-const registry = new Map<number, MetaEntry>();
+
+// Persist the registry to a JSON file (Railway volume via DATA_DIR) so bot-opened
+// markets survive restarts. Falls back to the cwd locally.
+const DATA_DIR = process.env.DATA_DIR ?? ".";
+const STORE = join(DATA_DIR, "registry.json");
+
+function loadRegistry(): Map<number, MetaEntry> {
+  try {
+    if (!existsSync(STORE)) return new Map();
+    const raw = JSON.parse(readFileSync(STORE, "utf8")) as Record<string, MetaEntry>;
+    return new Map(Object.entries(raw).map(([k, v]) => [Number(k), v]));
+  } catch (e) {
+    console.error("[store] load failed:", (e as Error)?.message);
+    return new Map();
+  }
+}
+
+function persist(): void {
+  try {
+    mkdirSync(DATA_DIR, { recursive: true });
+    writeFileSync(STORE, JSON.stringify(Object.fromEntries(registry)));
+  } catch (e) {
+    console.error("[store] save failed:", (e as Error)?.message);
+  }
+}
+
+const registry = loadRegistry();
 
 const U = (n: number) => BigInt(Math.round(n * 1e6)); // USDC 6-dp units
 const DAY = 86400;
@@ -73,6 +101,7 @@ async function doOpen(
       ticker: asset.ticker, kind: asset.kind, side, timeframe,
       pythId: asset.pythId, anchor: anchor ?? 0, caller, call: call?.slice(0, 140), takes: [],
     });
+    persist();
     await ctx.reply(
       `✅ Market #${marketId} opened on Arc\n${side === "long" ? "📈 LONG" : "📉 SHORT"} ${asset.ticker} · ${timeframe} · $${amount}` +
         `${call ? `\n“${call.slice(0, 140)}”` : ""}\nEntry: ${anchor ? "$" + fmtPrice(anchor) : "—"}\n\nLive → ${FE_URL}`,

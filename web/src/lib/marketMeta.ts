@@ -27,63 +27,18 @@ const PYTH = {
   EURUSD: "a995d00bb36a63cef7fd2c287dc105fc8f3d93779f062f09551b0af3e81ec30b",
 } as const;
 
-// Placeholder example data so the card design is visible in LOCAL PREVIEW only.
-// OFF by default → honest in prod: the synthetic on-chain markets (#1-4, opened
-// operator-vs-operator as escrow demos) are NOT real assets, so labeling them
-// would mislead. Real markets are labeled solely by the bot's /arc/markets-meta
-// endpoint. Enable locally with NEXT_PUBLIC_DEMO_SEED=1 to preview the design.
-const DEMO_SEED: Record<number, MarketMeta> = {
-  4: {
-    ticker: "EUR/USD", kind: "fx", side: "long", timeframe: "1w", pythId: PYTH.EURUSD, anchor: 1.145,
-    caller: "marcos", call: "Euro's coiling — pops after the CPI print 🇪🇺",
-    takes: [{ user: "satsdani", text: "dollar's too strong rn, fading this", side: "short" }, { user: "jdog", text: "agree, long euro here", side: "long" }],
-  },
-  3: {
-    ticker: "BTC", kind: "crypto", side: "long", timeframe: "1d", pythId: PYTH.BTC, anchor: 62000,
-    caller: "0xplunger", call: "BTC reclaiming the range — sending it 🚀",
-    takes: [{ user: "bagholder", text: "looks toppy, short", side: "short" }],
-  },
-  2: {
-    ticker: "ETH", kind: "crypto", side: "long", timeframe: "4h", pythId: PYTH.ETH, anchor: 2400,
-    caller: "vitalikfan", call: "ETH about to run, flippening szn",
-    takes: [{ user: "maxipad", text: "BTC dominance says no", side: "short" }],
-  },
-  1: {
-    ticker: "SOL", kind: "crypto", side: "short", timeframe: "1d", pythId: PYTH.SOL, anchor: 150,
-    caller: "degenmike", call: "SOL overheated — fading the pump",
-    takes: [{ user: "solmaxi", text: "ngmi, SOL only up", side: "long" }],
-  },
-};
-
-const DEMO_SEED_ENABLED =
-  process.env.NODE_ENV !== "production" && process.env.NEXT_PUBLIC_DEMO_SEED === "1";
-
-// REAL markets opened on Arc (operator-funded escrow that tracks a real Pyth feed).
-// Unlike #1-4, these were opened WITH an asset + side + real entry price, so the
-// ticker/side/anchor are honest and the seed is ALWAYS on. The social copy
-// (caller/call/takes) is illustrative. Anchors = Pyth spot at open (2026-06-24).
+// Real markets opened on Arc (operator-funded escrow tracking a real Pyth feed).
+// Honest labels only — ticker/side/timeframe/anchor are real (anchor = Pyth spot
+// at open). NO invented social: real calls come from the bot's /arc/markets-meta
+// (the handle that actually opened the market). The synthetic demo markets (#1-4)
+// and all curated taglines were removed — everything shown here is real.
 const REAL_SEED: Record<number, MarketMeta> = {
-  7: {
-    ticker: "EUR/USD", kind: "fx", side: "long", timeframe: "24h", pythId: PYTH.EURUSD, anchor: 1.1361,
-    caller: "satsdani", call: "Euro coiling under resistance — pops on the print 🇪🇺",
-    takes: [{ user: "maxipad", text: "dollar's too strong rn, fading", side: "short" }],
-  },
-  6: {
-    ticker: "ETH", kind: "crypto", side: "short", timeframe: "7d", pythId: PYTH.ETH, anchor: 1607,
-    caller: "0xplunger", call: "ETH can't break through here — fading the bounce.",
-    takes: [{ user: "vitalikfan", text: "no chance, flippening szn, longing it", side: "long" }],
-  },
-  5: {
-    ticker: "BTC", kind: "crypto", side: "long", timeframe: "24h", pythId: PYTH.BTC, anchor: 60666,
-    caller: "marcos", call: "BTC basing on the range low — reclaim and it runs. Long.",
-    takes: [{ user: "bagholder", text: "looks heavy, I'm on the other side", side: "short" }],
-  },
+  7: { ticker: "EUR/USD", kind: "fx", side: "long", timeframe: "24h", pythId: PYTH.EURUSD, anchor: 1.1361 },
+  6: { ticker: "ETH", kind: "crypto", side: "short", timeframe: "7d", pythId: PYTH.ETH, anchor: 1607 },
+  5: { ticker: "BTC", kind: "crypto", side: "long", timeframe: "24h", pythId: PYTH.BTC, anchor: 60666 },
 };
 
-export const SEED_META: Record<number, MarketMeta> = {
-  ...(DEMO_SEED_ENABLED ? DEMO_SEED : {}),
-  ...REAL_SEED,
-};
+export const SEED_META: Record<number, MarketMeta> = { ...REAL_SEED };
 
 const META_URL = process.env.NEXT_PUBLIC_ARC_META_URL;
 
