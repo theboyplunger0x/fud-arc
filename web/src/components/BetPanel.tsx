@@ -70,8 +70,21 @@ export default function BetPanel({ marketId, dk, longMult, shortMult, onDone }: 
     );
   }
 
+  // Poll the on-chain allowance until it covers `units`. More robust than
+  // waitForTransactionReceipt, which can hang on Arc's RPC even after the approve
+  // is mined (left the UI stuck on "Approving…" forever).
+  async function awaitAllowance(units: bigint): Promise<boolean> {
+    for (let i = 0; i < 25; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const res = await refetchAllowance();
+      if (((res.data as bigint | undefined) ?? BigInt(0)) >= units) return true;
+    }
+    return false;
+  }
+
   async function placeBet(amountVal: number) {
-    if (activeSide === null || inFlight.current) return;
+    const side = activeSide;
+    if (side === null || inFlight.current) return;
     setError(null);
     if (!Number.isFinite(amountVal) || amountVal <= 0) {
       setError("Enter an amount");
@@ -83,23 +96,28 @@ export default function BetPanel({ marketId, dk, longMult, shortMult, onDone }: 
       const allow = (allowance as bigint | undefined) ?? BigInt(0);
       if (allow < units) {
         setStep("approving");
-        const h = await writeContractAsync({
+        // Approve a bounded, generous amount so repeat bets don't re-approve.
+        await writeContractAsync({
           address: USDC_ADDRESS,
           abi: ERC20_ABI,
           functionName: "approve",
-          args: [MARKET_ADDRESS, units],
+          args: [MARKET_ADDRESS, parseUnits("1000000", 6)],
         });
-        await waitForTransactionReceipt(wagmiConfig, { hash: h });
-        await refetchAllowance();
+        const confirmed = await awaitAllowance(units);
+        if (!confirmed) {
+          setError("Approval still pending — check your wallet, then try again.");
+          return;
+        }
       }
       setStep("betting");
       const bh = await writeContractAsync({
         address: MARKET_ADDRESS,
         abi: marketAbi,
         functionName: "bet",
-        args: [BigInt(marketId), activeSide, units],
+        args: [BigInt(marketId), side, units],
       });
-      await waitForTransactionReceipt(wagmiConfig, { hash: bh });
+      // Best-effort wait — don't let a slow receipt hang the UI.
+      await waitForTransactionReceipt(wagmiConfig, { hash: bh, timeout: 60_000 }).catch(() => {});
       setAmount("");
       setActiveSide(null);
       onDone?.();

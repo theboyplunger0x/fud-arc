@@ -7,6 +7,7 @@ import ConnectButton from "@/components/ConnectButton";
 import DepositButton from "@/components/DepositButton";
 import CurrencySelector from "@/components/CurrencySelector";
 import FxStrip from "@/components/FxStrip";
+import FudTerminal from "@/components/FudTerminal";
 import { useCurrency } from "@/components/CurrencyProvider";
 import MarketCard from "@/components/MarketCard";
 import { readMarkets, MARKET_ADDRESS, EXPLORER, type Market } from "@/lib/arc";
@@ -148,6 +149,8 @@ export default function Home() {
         </div>
 
         <FxStrip dk={dk} />
+
+        <FudTerminal markets={markets ?? []} meta={meta} prices={prices} />
 
         {/* Markets */}
         <h2 className={`mt-10 ${label}`}>Markets on-chain</h2>
