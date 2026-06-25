@@ -40,6 +40,7 @@ const ERC20_ABI = [
   { type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] },
   { type: "function", name: "allowance", stateMutability: "view", inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "transfer", stateMutability: "nonpayable", inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] },
 ] as const;
 
 const account = privateKeyToAccount(KEY as `0x${string}`);
@@ -92,4 +93,45 @@ export async function openAndMatch(params: {
   await publicClient.waitForTransactionReceipt({ hash: betTx });
 
   return { marketId, openTx, betTx };
+}
+
+export interface OnchainMarket {
+  opener: Address;
+  closesAt: number;
+  outcome: number; // 0 = open, 1 = Long won, 2 = Short won, 3 = Draw
+  longPool: bigint;
+  shortPool: bigint;
+  fee: bigint;
+}
+
+/** Read a market's on-chain state. */
+export async function readMarket(id: bigint): Promise<OnchainMarket> {
+  const r = (await publicClient.readContract({
+    address: MARKET, abi: MARKET_ABI, functionName: "markets", args: [id],
+  })) as readonly [Address, bigint, number, bigint, bigint, bigint];
+  return { opener: r[0], closesAt: Number(r[1]), outcome: Number(r[2]), longPool: r[3], shortPool: r[4], fee: r[5] };
+}
+
+export type Outcome = 1 | 2 | 3; // 1 = Long won, 2 = Short won, 3 = Draw
+
+/** Operator resolves a market by outcome. Throws if the tx reverts. */
+export async function resolveMarket(id: bigint, outcome: Outcome): Promise<`0x${string}`> {
+  const hash = await walletClient.writeContract({
+    address: MARKET, abi: MARKET_ABI, functionName: "resolve", args: [id, outcome],
+  });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  if (receipt.status !== "success") throw new Error(`resolve reverted (${hash})`);
+  return hash;
+}
+
+/** Transfer USDC (6-dp) from the operator to `to` — the creator-cut nano-payment.
+ *  Re-validates the address and verifies the tx actually succeeded. */
+export async function payUsdc(to: string, amount: bigint): Promise<`0x${string}`> {
+  const dest = getAddress(to); // throws on malformed address
+  const hash = await walletClient.writeContract({
+    address: USDC, abi: ERC20_ABI, functionName: "transfer", args: [dest, amount],
+  });
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  if (receipt.status !== "success") throw new Error(`USDC transfer reverted (${hash})`);
+  return hash;
 }

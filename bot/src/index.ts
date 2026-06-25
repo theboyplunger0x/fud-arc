@@ -3,7 +3,7 @@ import { Bot, InlineKeyboard, type Context } from "grammy";
 import { createServer } from "node:http";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { openAndMatch, usdcBalance, operatorAddress, type Side } from "./arc.js";
+import { openAndMatch, usdcBalance, operatorAddress, readMarket, resolveMarket, payUsdc, type Side, type Outcome } from "./arc.js";
 import { resolveAsset, pythPrice, fmtPrice, ASSETS, ASSET_LIST, type AssetDef } from "./markets.js";
 
 const TOKEN = process.env.BOT_TOKEN;
@@ -24,32 +24,48 @@ interface MetaEntry {
   takes: { user: string; text: string; side: "long" | "short" }[];
 }
 
-// Persist the registry to a JSON file (Railway volume via DATA_DIR) so bot-opened
-// markets survive restarts. Falls back to the cwd locally.
-const DATA_DIR = process.env.DATA_DIR ?? ".";
-const STORE = join(DATA_DIR, "registry.json");
+// Full record stored per market: the served MetaEntry + internal fields the
+// resolver needs (closesAt, resolved) and the caller's tg id for the payout.
+interface MarketRec extends MetaEntry {
+  closesAt: number;
+  resolved: boolean;
+  callerUid?: number;
+}
 
-function loadRegistry(): Map<number, MetaEntry> {
+// Persisted to a JSON file (Railway volume via DATA_DIR) so bot-opened markets +
+// linked wallets survive restarts. Falls back to the cwd locally.
+const DATA_DIR = process.env.DATA_DIR ?? ".";
+const STORE = join(DATA_DIR, "store.json");
+
+interface StoreShape {
+  markets?: Record<string, MarketRec>;
+  wallets?: Record<string, string>;
+}
+
+function loadStore(): { registry: Map<number, MarketRec>; userWallets: Map<number, string> } {
   try {
-    if (!existsSync(STORE)) return new Map();
-    const raw = JSON.parse(readFileSync(STORE, "utf8")) as Record<string, MetaEntry>;
-    return new Map(Object.entries(raw).map(([k, v]) => [Number(k), v]));
+    if (!existsSync(STORE)) return { registry: new Map(), userWallets: new Map() };
+    const raw = JSON.parse(readFileSync(STORE, "utf8")) as StoreShape;
+    return {
+      registry: new Map(Object.entries(raw.markets ?? {}).map(([k, v]) => [Number(k), v])),
+      userWallets: new Map(Object.entries(raw.wallets ?? {}).map(([k, v]) => [Number(k), v])),
+    };
   } catch (e) {
     console.error("[store] load failed:", (e as Error)?.message);
-    return new Map();
+    return { registry: new Map(), userWallets: new Map() };
   }
 }
 
 function persist(): void {
   try {
     mkdirSync(DATA_DIR, { recursive: true });
-    writeFileSync(STORE, JSON.stringify(Object.fromEntries(registry)));
+    writeFileSync(STORE, JSON.stringify({ markets: Object.fromEntries(registry), wallets: Object.fromEntries(userWallets) }), { mode: 0o600 });
   } catch (e) {
     console.error("[store] save failed:", (e as Error)?.message);
   }
 }
 
-const registry = loadRegistry();
+const { registry, userWallets } = loadStore();
 
 const U = (n: number) => BigInt(Math.round(n * 1e6)); // USDC 6-dp units
 const DAY = 86400;
@@ -100,11 +116,13 @@ async function doOpen(
     registry.set(Number(marketId), {
       ticker: asset.ticker, kind: asset.kind, side, timeframe,
       pythId: asset.pythId, anchor: anchor ?? 0, caller, call: call?.slice(0, 140), takes: [],
+      closesAt, resolved: false, callerUid: uid,
     });
     persist();
     await ctx.reply(
       `✅ Market #${marketId} opened on Arc\n${side === "long" ? "📈 LONG" : "📉 SHORT"} ${asset.ticker} · ${timeframe} · $${amount}` +
-        `${call ? `\n“${call.slice(0, 140)}”` : ""}\nEntry: ${anchor ? "$" + fmtPrice(anchor) : "—"}\n\nLive → ${FE_URL}`,
+        `${call ? `\n“${call.slice(0, 140)}”` : ""}\nEntry: ${anchor ? "$" + fmtPrice(anchor) : "—"}\n\nLive → ${FE_URL}` +
+        `${userWallets.has(uid) ? "" : "\n\n💸 /wallet 0x… to get paid your creator cut when this resolves."}`,
     );
   } catch (e) {
     lastOpen.delete(uid);
@@ -233,10 +251,23 @@ bot.command("skip", async (ctx) => {
   if (uid && d) await finalize(ctx, uid, d, undefined);
 });
 
+bot.command("wallet", async (ctx) => {
+  const uid = ctx.from?.id;
+  if (!uid) return;
+  const addr = (ctx.match?.toString() ?? "").trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+    await ctx.reply("Usage: /wallet 0x… — your Arc address. That's where the agent pays your creator cut when your calls resolve.");
+    return;
+  }
+  userWallets.set(uid, addr);
+  persist();
+  await ctx.reply(`✅ Wallet linked. The agent will pay your creator cut here when your calls resolve:\n${addr}`);
+});
+
 bot.command("start", (ctx) =>
   ctx.reply(
     "FUD-arc agent — turn a call into a real on-chain market on Arc.\n\n" +
-      "📣 Guided:  /open\n⚡ Quick:  /long BTC 1  ·  /short ETH 1\n\n" +
+      "📣 Guided:  /open\n⚡ Quick:  /long BTC 1  ·  /short ETH 1\n💸 /wallet 0x… — get paid your creator cut when your calls resolve\n\n" +
       `Symbols: ${ASSET_LIST}`,
   ),
 );
@@ -256,10 +287,15 @@ createServer((req, res) => {
     res.end("method not allowed");
     return;
   }
-  if (req.url?.startsWith("/arc/markets-meta")) {
+  const path = (req.url ?? "").split("?")[0];
+  if (path === "/arc/markets-meta") {
     res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify({ markets: Object.fromEntries(registry) }));
-  } else if (req.url === "/" || req.url === "/health") {
+    const out: Record<string, MetaEntry> = {};
+    for (const [id, m] of registry) {
+      out[id] = { ticker: m.ticker, kind: m.kind, side: m.side, timeframe: m.timeframe, pythId: m.pythId, anchor: m.anchor, caller: m.caller, call: m.call, takes: m.takes };
+    }
+    res.end(JSON.stringify({ markets: out }));
+  } else if (path === "/" || path === "/health") {
     res.end("fud-arc bot ok");
   } else {
     res.statusCode = 404;
@@ -274,7 +310,66 @@ await bot.api.setMyCommands([
   { command: "open", description: "Make a call → open a market" },
   { command: "long", description: "Quick long (e.g. /long BTC 1)" },
   { command: "short", description: "Quick short (e.g. /short ETH 1)" },
+  { command: "wallet", description: "Link your wallet for creator payouts" },
   { command: "start", description: "What this bot does" },
 ]);
+
+// ── Resolver: at close, settle the market via the Pyth price, then pay the creator
+// their cut (a real on-chain nano-payment from the agent → the caller's wallet). ──
+const RESOLVE_POLL_MS = 60_000;
+const OPENER_CUT_BPS = 2000n; // contract constant: opener earns 20% of the fee
+const BPS = 10000n;
+const MAX_CUT_UNITS = BigInt(MAX_AMOUNT) * 1_000_000n; // sanity cap on any payout
+let tickRunning = false;
+
+async function resolverTick(): Promise<void> {
+  if (tickRunning) return; // never overlap ticks (a slow tick can outlast the interval)
+  tickRunning = true;
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    for (const [id, rec] of registry) {
+      if (rec.resolved || now < rec.closesAt) continue;
+      try {
+        const m = await readMarket(BigInt(id));
+        if (m.outcome === 0) {
+          const price = await pythPrice(rec.pythId);
+          if (price == null) continue; // no fresh price → retry next tick
+          // anchor 0 (price unavailable at open) → draw; otherwise by the move vs entry.
+          const outcome: Outcome = rec.anchor > 0 ? (price > rec.anchor ? 1 : price < rec.anchor ? 2 : 3) : 3;
+          await resolveMarket(BigInt(id), outcome);
+          console.log(`[resolve] #${id} ${rec.ticker} → ${outcome === 1 ? "LONG" : outcome === 2 ? "SHORT" : "DRAW"} (entry ${rec.anchor} → ${price})`);
+        }
+        // Mark resolved + persist BEFORE paying — guarantees no double-pay across a
+        // restart (a failed payout is the operator's small loss, never a re-pay).
+        rec.resolved = true;
+        persist();
+
+        // Per-market creator cut from the on-chain fee (NOT a global accumulator delta).
+        const fee = (await readMarket(BigInt(id))).fee;
+        let cut = (fee * OPENER_CUT_BPS) / BPS;
+        if (cut > MAX_CUT_UNITS) cut = 0n; // guard against an unexpected value
+        const uid = rec.callerUid;
+        const wallet = uid != null ? userWallets.get(uid) : undefined;
+        if (cut > 0n && wallet) {
+          await payUsdc(wallet, cut);
+          const usdc = (Number(cut) / 1e6).toFixed(4);
+          console.log(`[pay] #${id} ${usdc} USDC → ${wallet}`);
+          if (uid != null) {
+            await bot.api
+              .sendMessage(uid, `💸 Your call #${id} (${rec.ticker} ${rec.side.toUpperCase()}) resolved.\nCreator cut paid: ${usdc} USDC → your wallet.`)
+              .catch(() => {});
+          }
+        }
+      } catch (e) {
+        console.error(`[resolve] #${id} failed:`, (e as Error)?.message);
+      }
+    }
+  } finally {
+    tickRunning = false;
+  }
+}
+setInterval(() => {
+  resolverTick().catch((e) => console.error("[resolver]", (e as Error)?.message));
+}, RESOLVE_POLL_MS);
 
 bot.start({ onStart: (me) => console.log(`[bot] @${me.username} live · operator ${operatorAddress}`) });

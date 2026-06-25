@@ -27,9 +27,11 @@ export async function pythPrice(pythId: string): Promise<number | null> {
   try {
     const res = await fetch(`https://hermes.pyth.network/v2/updates/price/latest?ids[]=${pythId}`);
     if (!res.ok) return null;
-    const data = (await res.json()) as { parsed?: { price: { price: string; expo: number } }[] };
+    const data = (await res.json()) as { parsed?: { price: { price: string; expo: number; publish_time?: number } }[] };
     const p = data.parsed?.[0]?.price;
     if (!p) return null;
+    // Reject stale prices (Hermes returning a cached value) — matters for resolution.
+    if (typeof p.publish_time === "number" && Date.now() / 1000 - p.publish_time > 120) return null;
     return Number(p.price) * 10 ** p.expo;
   } catch {
     return null;
