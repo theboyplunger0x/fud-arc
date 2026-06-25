@@ -5,6 +5,7 @@ import { type Market } from "@/lib/arc";
 import type { MarketMeta } from "@/lib/marketMeta";
 import type { PythPrice } from "@/lib/pyth";
 import BetPanel from "./BetPanel";
+import ClaimPanel from "./ClaimPanel";
 import { useCurrency } from "./CurrencyProvider";
 
 interface MarketCardProps {
@@ -52,7 +53,7 @@ function statusBadge(market: Market, now: number, winner: Winner, dk: boolean) {
     return { text: "DRAW", cls: dk ? "text-sky-400 bg-sky-500/15" : "text-sky-600 bg-sky-100", live: false };
   if (now < market.closesAt)
     return { text: "LIVE", cls: dk ? "text-violet-400 bg-violet-500/15" : "text-violet-600 bg-violet-100", live: true };
-  return { text: "CLOSED", cls: dk ? "text-white/50 bg-white/10" : "text-gray-600 bg-gray-100", live: false };
+  return { text: "AWAITING RESOLVE", cls: dk ? "text-amber-300 bg-amber-500/15" : "text-amber-700 bg-amber-100", live: false };
 }
 
 export default function MarketCard({ market: m, meta, live, now, dk, index, onBetDone }: MarketCardProps) {
@@ -137,7 +138,7 @@ export default function MarketCard({ market: m, meta, live, now, dk, index, onBe
           {!isDone && (
             <p className={`text-[10px] mt-0.5 inline-flex items-center gap-1 ${closingSoon ? "text-red-400 font-bold" : mutedTxt}`}>
               {closingSoon && <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-red-400" />}
-              {closed ? "settling…" : `${timeLeft(m.closesAt, now)} left`}
+              {closed ? "awaiting resolve" : `${timeLeft(m.closesAt, now)} left`}
             </p>
           )}
         </div>
@@ -239,7 +240,7 @@ export default function MarketCard({ market: m, meta, live, now, dk, index, onBe
       <div className={`flex justify-between items-center text-[10px] font-bold ${mutedTxt}`}>
         <span className="tabular-nums">{fmt(m.longPool + m.shortPool)} vol</span>
         <span className={isDone && winner ? "text-emerald-400" : ""}>
-          {isDone ? (winner ? `creator earned ${fmt(creatorCut)}` : "—") : "creator earns 20% of fee"}
+          {isDone ? (winner ? `creator cut ${fmt(creatorCut)}` : "—") : "creator earns 20% of fee"}
         </span>
       </div>
 
@@ -256,6 +257,7 @@ export default function MarketCard({ market: m, meta, live, now, dk, index, onBe
           onDone={onBetDone}
         />
       )}
+      {isDone && <ClaimPanel marketId={m.id} dk={dk} onDone={onBetDone} />}
     </motion.div>
   );
 }

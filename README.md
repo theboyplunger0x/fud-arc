@@ -16,7 +16,7 @@ matches a counterparty, and settles on-chain — paying the creator who brought 
 | Piece | What it is | Where |
 |---|---|---|
 | **Contract** | `FudArcMarket` — minimal two-sided P2P USDC escrow: open → bet LONG/SHORT → resolve → winners claim (stake + pro-rata of the net losing pool) → **opener claims a creator cut**. Pull-based payouts, zero-address guards, a full unit suite (~93% branch coverage, independently security-reviewed: 0 critical/high), `forge fmt`-clean, green CI. | [`src/FudArcMarket.sol`](src/FudArcMarket.sol) |
-| **Agent** | The live FUD Telegram bot, pointed at Arc behind a flag: a social call becomes an on-chain market on Arc, auto-resolved at close. | [FUDmarkets `arc-demo` branch](https://github.com/theboyplunger0x/FUDmarkets/tree/arc-demo) |
+| **Agent** | The live FUD Telegram bot: a social call becomes an on-chain market on Arc, resolved at close by GenLayer with Pyth fallback. | [`bot/`](bot/) |
 | **Frontend** | Next.js dashboard (FUD design system) that reads the markets **on-chain** from Arc and shows the live loop. | [`web/`](web/) |
 
 ## Judge quick path
@@ -51,9 +51,12 @@ both the gas token at 18 decimals and a 6-decimal ERC-20 — the contract uses t
 
 ## Partner & settlement
 
-**GenLayer** is FUD's resolution layer — decentralized LLM-validator consensus that decides market
-outcomes — and **native USDC on Arc/Circle** is the settlement rail. The core carries no third-party
-dependency beyond GenLayer + Arc: in a P2P market the counterparty *is* the liquidity.
+**GenLayer** is the primary resolution path for the Arc bot today: at close, the bot deploys a
+GenLayer Intelligent Contract that reads live price sources (Pyth plus Coinbase/CoinGecko for
+crypto majors; Pyth-only for FX) and uses that price to call `resolve()` on Arc. Pyth Hermes remains
+the fallback so settlement does not stall if GenLayer times out. **Native USDC on Arc/Circle** is the
+settlement rail. The core carries no liquidity dependency beyond counterparties: in a P2P market the
+counterparty *is* the liquidity.
 
 ---
 
@@ -78,8 +81,8 @@ npm run dev      # http://localhost:3000 — reads the live Arc markets
 2. ✅ **Agent → Arc** — the Telegram bot creates markets on Arc, auto-resolved at close.
 3. ✅ **Frontend** — on-chain market dashboard in the FUD design system.
 4. **Signature-based P2P matching** — take the other side with one signature, no manual tx.
-5. **GenLayer-driven resolution on Arc** — outcomes from GenLayer's validator consensus settle via `resolve()`.
-6. **Multi-asset** — crypto + FX canonical markets via a pull oracle (Pyth/Stork); stocks later.
+5. ✅ **GenLayer-driven resolution on Arc** — the bot resolves through GenLayer first, then Pyth fallback, and settles via `resolve()`.
+6. ✅ **Multi-asset** — crypto + FX canonical markets, settled in USDC on Arc; stocks later.
 
 ---
 

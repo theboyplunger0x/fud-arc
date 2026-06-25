@@ -95,7 +95,7 @@ export default function DepositModal({ dk, onClose }: { dk: boolean; onClose: ()
       >
         <div className="p-5">
           <div className="flex items-center justify-between mb-1">
-            <h3 className={`text-[16px] font-black ${strong}`}>Add funds</h3>
+            <h3 className={`text-[16px] font-black ${strong}`}>Funding</h3>
             <button onClick={onClose} className={`text-[18px] font-bold ${muted} hover:opacity-60`}>✕</button>
           </div>
           <p className={`text-[12px] leading-relaxed mb-4 ${muted}`}>
@@ -118,7 +118,7 @@ export default function DepositModal({ dk, onClose }: { dk: boolean; onClose: ()
           {/* Multi-currency board — fund from / cash out to any stablecoin (live StableFX) */}
           <div className="flex items-center justify-between">
             <p className={`text-[10px] font-black uppercase tracking-widest ${muted}`}>
-              {cashout ? "Cash out to any stablecoin" : "Fund from any stablecoin"}
+              {cashout ? "Cash-out quote" : "Funding quote"}
             </p>
             <span className={`text-[9px] font-bold ${dk ? "text-emerald-400/70" : "text-emerald-600/70"}`}>● live · StableFX on Arc</span>
           </div>
@@ -190,7 +190,7 @@ export default function DepositModal({ dk, onClose }: { dk: boolean; onClose: ()
           </div>
 
           <p className={`text-[10px] leading-relaxed mt-2 ${muted}`}>
-            Live pricing today · <span className="font-bold">1-tap swap unlocks with KYB</span>.
+            Quote only today · no swap is executed. <span className="font-bold">1-tap swap unlocks with KYB</span>.
           </p>
           {error && <p className={`text-[10px] font-bold text-center mt-2 ${dk ? "text-red-400" : "text-red-600"}`}>{error}</p>}
         </div>

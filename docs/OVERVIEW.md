@@ -17,7 +17,7 @@ A user posts a call in Telegram — a token contract address, or an FX pair like
 
 1. **Call** — a user posts in Telegram: `long $5 on <CA> 15m`, or an FX pair `EUR/USD`.
 2. **Market** — the agent opens a market on the `FudArcMarket` contract on Arc (`openMarket`), escrowing the opener's USDC stake. A counterparty backs the other side (`bet`). Both stakes sit in on-chain escrow.
-3. **Resolve** — at close, the resolver reports the winning side (`resolve`). Token markets are priced by **GenLayer** — the same decentralized validator-consensus oracle that resolves FUD in production — with a DexScreener fallback; FX markets are settled by reading **Pyth's price directly on-chain on Arc**.
+3. **Resolve** — at close, the resolver reports the winning side (`resolve`). The bot now uses **GenLayer first**: it deploys an Intelligent Contract that reads live price sources (Pyth plus Coinbase/CoinGecko for crypto majors; Pyth-only for FX) and returns the resolution price. Pyth Hermes is the fallback so settlement does not stall if GenLayer times out.
 4. **Pay out** — winners pull their stake + a pro-rata share of the losing pool, net of the protocol fee (`claim`); **the creator pulls their cut** (`claimCreator`). Payouts are pull-based, so a reverting recipient can never brick settlement.
 
 The frontend reads markets **straight from the contract on Arc** — no backend in the middle — and renders them as live cards: pool odds, payout multipliers, countdown, status, a live Pyth price, and **the creator and the cut they earn**.
@@ -26,12 +26,12 @@ The frontend reads markets **straight from the contract on Arc** — no backend 
 
 The key design choice: **the contract is asset-agnostic.** `FudArcMarket` stores only pools, close time, outcome, and the opener — never *which asset* a market is about. That keeps it minimal, decimal-agnostic (pure 6-decimal USDC integer math), and reusable for any market an oracle can resolve.
 
-The asset identity (ticker, anchor price, timeframe) lives **off-chain** in the agent; the frontend merges it over the on-chain data through a read-only `/arc/markets-meta` endpoint. Prices come from **Pyth** — client-side Hermes for the live UI ticker, and on-chain on Arc for FX settlement.
+The asset identity (ticker, anchor price, timeframe) lives **off-chain** in the agent; the frontend merges it over the on-chain data through a read-only `/arc/markets-meta` endpoint. Live UI prices come from Pyth Hermes. Resolution is GenLayer-first with Pyth fallback.
 
 ```
  Telegram call ─▶ Agent ─▶ FudArcMarket  (USDC escrow on Arc)
                     │             │
-                    │        resolve ◀── GenLayer (tokens) / Pyth on-chain (FX)
+                    │        resolve ◀── GenLayer first / Pyth fallback
                     │             │
                     │        claim · claimCreator  (pull-based USDC payouts)
                     ▼
@@ -55,12 +55,12 @@ The whole loop is **USDC-native**: stakes, escrow, and every payout are USDC on 
 ## On-chain, verified
 
 - **Contract:** `FudArcMarket` at `0x57352a7983E57De691fcEa5d7544CF6a398c0bf1` — Arc testnet, chainId `5042002`.
-- **Oracles:** Pyth is **verified deployed on Arc** (`0x2880aB155794e7179c9eE2e38200202908C17B43`; `getPriceUnsafe` reads EUR/USD + BTC/USD on-chain, no push/fee/VAA). GenLayer consensus resolves token markets.
+- **Oracles:** GenLayer is wired as the primary resolver on studionet, with live smoke tests for BTC (Pyth + Coinbase + CoinGecko) and EUR/USD (Pyth-only). Pyth is also **verified deployed on Arc** (`0x2880aB155794e7179c9eE2e38200202908C17B43`; `getPriceUnsafe` reads EUR/USD + BTC/USD on-chain, no push/fee/VAA), and remains the fallback price source.
 - **Rigor:** 28 Foundry tests including a **fuzz conservation invariant** (Σ in = Σ out, nothing ever locked) over random amounts and outcomes; two code-review passes plus a Codex pass; pull-based payouts; resolve/claim guards; an FX settlement guard so the on-chain price always post-dates the market's open.
 
 ## What's real vs roadmap
 
-**Real today:** on-chain USDC markets, escrow and pull-based payouts; the Telegram agent opening markets; GenLayer token resolution; on-chain Pyth FX settlement; the live, on-chain-reading dashboard with the creator economics surfaced.
+**Real today:** on-chain USDC markets, escrow and pull-based payouts; the Telegram agent opening markets; GenLayer-first resolution with Pyth fallback; crypto + FX markets; the live, on-chain-reading dashboard with creator economics and winner claims surfaced.
 
 **Roadmap (labeled, not claimed as done):** signature / lazy-match settlement (removing the single operator); pull-mode Pyth `updatePriceFeeds` for sub-second FX freshness; mainnet hardening (two-step ownership); on-chain bidding from the frontend (wallet-connect).
 

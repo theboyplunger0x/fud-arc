@@ -55,6 +55,10 @@ export async function usdcBalance(): Promise<bigint> {
   return (await publicClient.readContract({ address: USDC, abi: ERC20_ABI, functionName: "balanceOf", args: [account.address] })) as bigint;
 }
 
+export async function nextMarketId(): Promise<bigint> {
+  return (await publicClient.readContract({ address: MARKET, abi: MARKET_ABI, functionName: "nextMarketId" })) as bigint;
+}
+
 async function ensureAllowance(needed: bigint): Promise<void> {
   const current = (await publicClient.readContract({
     address: USDC, abi: ERC20_ABI, functionName: "allowance", args: [account.address, MARKET],

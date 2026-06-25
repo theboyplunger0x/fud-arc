@@ -78,8 +78,7 @@ export default function Home() {
   }, []);
 
   const sorted = markets ? [...markets].sort((a, b) => b.id - a.id) : null;
-  // Only show markets we can label (seed or remote /arc/markets-meta) — hides bare synthetic ids.
-  const visible = sorted ? sorted.filter((m) => meta[m.id]) : null;
+  const visible = sorted;
   const creatorEarned = (markets ?? []).reduce(
     (s, m) => (m.outcome === 1 || m.outcome === 2 ? s + (m.fee * BigInt(2000)) / BigInt(10000) : s),
     BigInt(0),
@@ -92,20 +91,18 @@ export default function Home() {
       {/* Header bar — sticky */}
       <header className={`sticky top-0 z-20 border-b backdrop-blur-md ${dk ? "bg-[#0A0A0A]/80 border-white/[0.07]" : "bg-white/85 border-gray-200"}`}>
         <div className="mx-auto max-w-7xl px-5 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-[24px] font-black tracking-[-0.03em] leading-none select-none">
-              FUD<span className="text-emerald-400">.</span>
-            </span>
+          <span className="text-[24px] font-black tracking-[-0.03em] leading-none select-none">
+            FUD<span className="text-emerald-400">.</span>
+          </span>
+          <div className="flex items-center gap-2.5">
             <a
               href="https://t.me/FudArcBot"
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden sm:inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-emerald-400 text-[#0A0A0A] text-[12px] font-black hover:bg-emerald-300 transition"
+              className="hidden sm:inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-emerald-400 text-[#0A0A0A] text-[12px] font-black hover:bg-emerald-300 transition"
             >
-              📣 Make a call →
+              📣 Make a call
             </a>
-          </div>
-          <div className="flex items-center gap-2.5">
             <CurrencySelector dk={dk} />
             <DepositButton dk={dk} />
             <ConnectButton dk={dk} markets={markets ?? []} />
@@ -122,6 +119,10 @@ export default function Home() {
         <p className={`mt-3 max-w-2xl text-[13px] leading-relaxed ${dk ? "text-white/50" : "text-gray-600"}`}>
           An agent turns a Telegram call into a USDC conviction market — open, take the other side,
           resolve, pay out — all on-chain. The creator who made the call earns a cut.
+        </p>
+
+        <p className={`mt-2 text-[11px] font-semibold ${dk ? "text-white/35" : "text-gray-400"}`}>
+          Anyone can call from Telegram — no wallet, no signing ↗
         </p>
 
         {/* Make a call (mobile only — the header has it on sm+) */}
@@ -149,12 +150,10 @@ export default function Home() {
           </a>
           {creatorEarned > BigInt(0) && (
             <span className={`text-[11px] font-bold px-3 py-1 rounded-full ${dk ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-300" : "bg-emerald-50 border border-emerald-200 text-emerald-700"}`}>
-              💸 Creators earned {fmt(creatorEarned)}
+              💸 Creator cuts {fmt(creatorEarned)}
             </span>
           )}
         </div>
-
-        <FxStrip dk={dk} />
 
         {/* Markets (main) + sidebar: live calls + creator payouts */}
         <div className="mt-8 flex flex-col lg:flex-row gap-6">
@@ -204,6 +203,7 @@ export default function Home() {
           <aside className="lg:w-[310px] shrink-0 space-y-4">
             <MessagesFeed markets={markets ?? []} meta={meta} dk={dk} />
             <CreatorFeesViewer markets={markets ?? []} meta={meta} dk={dk} />
+            <FxStrip dk={dk} />
           </aside>
         </div>
 
@@ -211,9 +211,9 @@ export default function Home() {
         <h2 className={`mt-12 ${label}`}>How it works</h2>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           {[
-            { n: "01", t: "Call", d: "Someone posts a call on X or Telegram." },
+            { n: "01", t: "Call", d: "Someone posts a call in Telegram." },
             { n: "02", t: "Market", d: "The agent opens a P2P USDC market on Arc." },
-            { n: "03", t: "Settle", d: "It resolves on-chain via Pyth; the creator earns a cut, paid by the agent." },
+            { n: "03", t: "Settle", d: "It resolves through GenLayer over live price sources, with Pyth fallback; winners claim from escrow." },
           ].map((s) => (
             <div
               key={s.n}
@@ -230,7 +230,7 @@ export default function Home() {
 
         {/* Footer */}
         <div className={`mt-12 border-t pt-6 text-[11px] ${dk ? "border-white/[0.06] text-white/30" : "border-gray-200 text-gray-400"}`}>
-          FUD is live on Base · this is the Arc build · settled on-chain via Pyth ·{" "}
+          FUD is live on Base · this is the Arc build · resolved by GenLayer with Pyth fallback ·{" "}
           <a className="underline hover:no-underline" href="https://github.com/theboyplunger0x/fud-arc" target="_blank" rel="noopener noreferrer">
             open-source
           </a>

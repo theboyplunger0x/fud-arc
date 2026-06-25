@@ -14,7 +14,8 @@ const ERC20_ABI = [
   { type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] },
 ] as const;
 
-const PRESETS = [5, 25, 100, 500];
+const FAUCET = "https://faucet.circle.com";
+const PRESETS = [1, 5, 10, 25];
 
 function shortErr(msg: string): string {
   if (/user rejected|denied/i.test(msg)) return "Rejected";
@@ -27,7 +28,7 @@ interface BetPanelProps {
   dk: boolean;
   longMult?: number;
   shortMult?: number;
-  onDone?: () => void;
+  onDone?: () => void | Promise<void>;
 }
 
 export default function BetPanel({ marketId, dk, longMult, shortMult, onDone }: BetPanelProps) {
@@ -120,7 +121,7 @@ export default function BetPanel({ marketId, dk, longMult, shortMult, onDone }: 
       await waitForTransactionReceipt(wagmiConfig, { hash: bh, timeout: 60_000 }).catch(() => {});
       setAmount("");
       setActiveSide(null);
-      onDone?.();
+      await onDone?.();
     } catch (e: unknown) {
       setError(e instanceof Error ? shortErr(e.message) : "Failed");
     } finally {
@@ -211,7 +212,19 @@ export default function BetPanel({ marketId, dk, longMult, shortMult, onDone }: 
                   Add
                 </button>
               </div>
-              {error && <p className={`text-[10px] font-bold text-center ${dk ? "text-red-400" : "text-red-600"}`}>{error}</p>}
+              {error && (
+                <p className={`text-[10px] font-bold text-center ${dk ? "text-red-400" : "text-red-600"}`}>
+                  {error}
+                  {error === "Insufficient funds" && (
+                    <>
+                      {" · "}
+                      <a href={FAUCET} target="_blank" rel="noopener noreferrer" className="underline hover:no-underline">
+                        Get test USDC
+                      </a>
+                    </>
+                  )}
+                </p>
+              )}
             </>
           )}
         </motion.div>

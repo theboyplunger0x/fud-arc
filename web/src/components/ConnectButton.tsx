@@ -26,6 +26,9 @@ export default function ConnectButton({ dk, markets }: { dk: boolean; markets: M
     query: { enabled: !!address },
   });
   const [open, setOpen] = useState(false);
+  const hasInjected = typeof window !== "undefined" && "ethereum" in window;
+  const connector =
+    (hasInjected ? connectors.find((c) => c.id === "injected") : connectors.find((c) => c.id === "walletConnect")) ?? connectors[0];
 
   if (isConnected && address) {
     const initial = (profile?.handle?.[0] ?? address[2]).toUpperCase();
@@ -56,8 +59,8 @@ export default function ConnectButton({ dk, markets }: { dk: boolean; markets: M
 
   return (
     <button
-      onClick={() => connectors[0] && connect({ connector: connectors[0] })}
-      disabled={isPending || !connectors[0]}
+      onClick={() => connector && connect({ connector })}
+      disabled={isPending || !connector}
       className={`px-5 py-2.5 rounded-xl text-[14px] font-black transition disabled:opacity-50 ${dk ? "bg-emerald-400 text-[#0A0A0A] hover:bg-emerald-300" : "bg-emerald-500 text-white hover:bg-emerald-600"}`}
     >
       {isPending ? "Connecting…" : "Connect wallet"}

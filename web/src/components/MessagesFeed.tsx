@@ -55,43 +55,48 @@ export default function MessagesFeed({ markets, meta, dk }: Props) {
     return () => clearInterval(t);
   }, []);
 
-  if (!shown.length) return null; // no calls yet → don't reserve empty space
-
   const card = dk ? "border-white/8 bg-white/[0.03]" : "border-gray-200 bg-white shadow-sm";
   const label = dk ? "text-white/30" : "text-gray-400";
   const userText = dk ? "text-white/25" : "text-gray-400";
+  const muted = dk ? "text-white/40" : "text-gray-500";
 
   return (
-    <div className={`mt-6 rounded-2xl border p-4 ${card}`}>
+    <div className={`rounded-2xl border p-4 ${card}`}>
       <div className="flex items-center gap-1.5 mb-3">
         <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
         <span className={`text-[10px] font-black uppercase tracking-[0.18em] ${label}`}>Live calls</span>
       </div>
-      <div className="space-y-2 min-h-[120px]">
-        <AnimatePresence mode="popLayout" initial={false}>
-          {shown.map((msg) => {
-            const sideStrong = msg.side === "short" ? (dk ? "text-red-400" : "text-red-500") : (dk ? "text-emerald-400" : "text-emerald-500");
-            const quote = msg.side === "short" ? (dk ? "text-red-400/90" : "text-red-600") : (dk ? "text-emerald-400/90" : "text-emerald-600");
-            return (
-              <motion.p
-                key={msg.id}
-                layout
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className={`text-[12px] leading-snug font-bold italic ${quote}`}
-              >
-                <span className={`not-italic font-black mr-1 ${sideStrong}`}>
-                  {msg.side === "short" ? "▼" : "▲"} {msg.ticker}
-                </span>
-                &ldquo;{msg.text}&rdquo;
-                {msg.user && <span className={`not-italic font-normal ml-1.5 text-[10px] ${userText}`}>— @{msg.user}</span>}
-              </motion.p>
-            );
-          })}
-        </AnimatePresence>
-      </div>
+      {shown.length === 0 ? (
+        <p className={`text-[11px] leading-relaxed ${muted}`}>
+          Calls land here as they&apos;re made. Tap <span className="font-bold">Make a call</span> → <span className="font-mono">/open</span> and add a tagline.
+        </p>
+      ) : (
+        <div className="space-y-2 min-h-[120px]">
+          <AnimatePresence mode="popLayout" initial={false}>
+            {shown.map((msg) => {
+              const sideStrong = msg.side === "short" ? (dk ? "text-red-400" : "text-red-500") : (dk ? "text-emerald-400" : "text-emerald-500");
+              const quote = msg.side === "short" ? (dk ? "text-red-400/90" : "text-red-600") : (dk ? "text-emerald-400/90" : "text-emerald-600");
+              return (
+                <motion.p
+                  key={msg.id}
+                  layout
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className={`text-[12px] leading-snug font-bold italic ${quote}`}
+                >
+                  <span className={`not-italic font-black mr-1 ${sideStrong}`}>
+                    {msg.side === "short" ? "▼" : "▲"} {msg.ticker}
+                  </span>
+                  &ldquo;{msg.text}&rdquo;
+                  {msg.user && <span className={`not-italic font-normal ml-1.5 text-[10px] ${userText}`}>— @{msg.user}</span>}
+                </motion.p>
+              );
+            })}
+          </AnimatePresence>
+        </div>
+      )}
     </div>
   );
 }

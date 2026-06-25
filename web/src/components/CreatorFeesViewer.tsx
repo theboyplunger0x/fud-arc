@@ -10,9 +10,8 @@ interface Props {
   dk: boolean;
 }
 
-// Live view of creator cuts earned on resolved markets — the fees the agent pays
-// to the opener who made the call. Cut = fee × OPENER_CUT_BPS(20%), straight from
-// on-chain market state (real).
+// Live view of creator cuts accrued on resolved markets. Cut = fee ×
+// OPENER_CUT_BPS(20%), straight from on-chain market state.
 export default function CreatorFeesViewer({ markets, meta, dk }: Props) {
   const { fmt } = useCurrency();
   const rows = markets
@@ -28,11 +27,11 @@ export default function CreatorFeesViewer({ markets, meta, dk }: Props) {
     <div className={`rounded-2xl border p-4 ${card}`}>
       <div className="flex items-center gap-1.5 mb-3">
         <span className="text-[12px]">💸</span>
-        <span className={`text-[10px] font-black uppercase tracking-[0.18em] ${label}`}>Creator payouts</span>
+        <span className={`text-[10px] font-black uppercase tracking-[0.18em] ${label}`}>Creator cuts</span>
       </div>
       {rows.length === 0 ? (
         <p className={`text-[11px] leading-relaxed ${muted}`}>
-          When a call resolves, the agent pays the creator their cut — straight to their wallet. Payouts land here.
+          Resolved calls accrue a creator cut here. Linked Telegram creators can be paid to their wallet.
         </p>
       ) : (
         <div className="space-y-2">
@@ -42,7 +41,7 @@ export default function CreatorFeesViewer({ markets, meta, dk }: Props) {
                 {r.mm?.caller ? `@${r.mm.caller}` : `market #${r.id}`}
                 {r.mm?.ticker && <span className={`ml-1.5 font-normal ${muted}`}>· {r.mm.ticker}</span>}
               </span>
-              <span className={`text-[11px] font-black shrink-0 ${dk ? "text-emerald-300" : "text-emerald-600"}`}>+{fmt(r.cut)}</span>
+              <span className={`text-[11px] font-black shrink-0 ${dk ? "text-emerald-300" : "text-emerald-600"}`}>+{fmt(r.cut)} accrued</span>
             </div>
           ))}
         </div>

@@ -3,7 +3,8 @@ import { Bot, InlineKeyboard, type Context } from "grammy";
 import { createServer } from "node:http";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { openAndMatch, usdcBalance, operatorAddress, readMarket, resolveMarket, payUsdc, type Side, type Outcome } from "./arc.js";
+import { openAndMatch, usdcBalance, operatorAddress, readMarket, resolveMarket, payUsdc, nextMarketId, type Side, type Outcome } from "./arc.js";
+import { resolutionPrice } from "./genlayer.js";
 import { resolveAsset, pythPrice, fmtPrice, ASSETS, ASSET_LIST, type AssetDef } from "./markets.js";
 
 const TOKEN = process.env.BOT_TOKEN;
@@ -31,6 +32,24 @@ interface MarketRec extends MetaEntry {
   resolved: boolean;
   callerUid?: number;
 }
+
+const RESCUE_MARKETS: Record<number, MarketRec> = {
+  5: {
+    ticker: "BTC", kind: "crypto", side: "long", timeframe: "24h",
+    pythId: "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
+    anchor: 60666, takes: [], closesAt: 1782421342, resolved: false,
+  },
+  6: {
+    ticker: "ETH", kind: "crypto", side: "short", timeframe: "7d",
+    pythId: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+    anchor: 1607, takes: [], closesAt: 1782939742, resolved: false,
+  },
+  7: {
+    ticker: "EUR/USD", kind: "fx", side: "long", timeframe: "24h",
+    pythId: "a995d00bb36a63cef7fd2c287dc105fc8f3d93779f062f09551b0af3e81ec30b",
+    anchor: 1.1361, takes: [], closesAt: 1782421342, resolved: false,
+  },
+};
 
 // Persisted to a JSON file (Railway volume via DATA_DIR) so bot-opened markets +
 // linked wallets survive restarts. Falls back to the cwd locally.
@@ -70,7 +89,7 @@ const { registry, userWallets } = loadStore();
 const U = (n: number) => BigInt(Math.round(n * 1e6)); // USDC 6-dp units
 const DAY = 86400;
 const TIMEFRAMES: Record<string, number> = { "15m": 900, "1h": 3600, "24h": 86400, "7d": 604800 };
-const MAX_AMOUNT = 100;
+const MAX_AMOUNT = 5;
 const MIN_AMOUNT = 0.01;
 const COOLDOWN_MS = 10_000;
 const lastOpen = new Map<number, number>(); // tgUserId → ts
@@ -322,27 +341,48 @@ const BPS = 10000n;
 const MAX_CUT_UNITS = BigInt(MAX_AMOUNT) * 1_000_000n; // sanity cap on any payout
 let tickRunning = false;
 
+async function resolverCandidates(now: number): Promise<Map<number, MarketRec>> {
+  const out = new Map(registry);
+  for (const [rawId, rec] of Object.entries(RESCUE_MARKETS)) {
+    const id = Number(rawId);
+    if (!out.has(id)) out.set(id, rec);
+  }
+
+  const next = Number(await nextMarketId().catch(() => 0n));
+  for (let id = 1; id < next; id++) {
+    if (out.has(id)) continue;
+    const m = await readMarket(BigInt(id)).catch(() => null);
+    if (m && m.outcome === 0 && now >= m.closesAt) {
+      console.warn(`[resolve] #${id} is closed/unresolved but has no metadata; leaving it unresolved until a rescue entry is added.`);
+    }
+  }
+  return out;
+}
+
 async function resolverTick(): Promise<void> {
   if (tickRunning) return; // never overlap ticks (a slow tick can outlast the interval)
   tickRunning = true;
   try {
     const now = Math.floor(Date.now() / 1000);
-    for (const [id, rec] of registry) {
-      if (rec.resolved || now < rec.closesAt) continue;
+    const candidates = await resolverCandidates(now);
+    for (const [id, rec] of candidates) {
+      if (rec.resolved) continue;
       try {
         const m = await readMarket(BigInt(id));
+        if (now < m.closesAt) continue;
         if (m.outcome === 0) {
-          const price = await pythPrice(rec.pythId);
-          if (price == null) continue; // no fresh price → retry next tick
+          const rp = await resolutionPrice(rec.ticker, rec.pythId);
+          if (rp == null) continue; // GenLayer and Pyth fallback both failed → retry next tick
+          const price = rp.price;
           // anchor 0 (price unavailable at open) → draw; otherwise by the move vs entry.
           const outcome: Outcome = rec.anchor > 0 ? (price > rec.anchor ? 1 : price < rec.anchor ? 2 : 3) : 3;
           await resolveMarket(BigInt(id), outcome);
-          console.log(`[resolve] #${id} ${rec.ticker} → ${outcome === 1 ? "LONG" : outcome === 2 ? "SHORT" : "DRAW"} (entry ${rec.anchor} → ${price})`);
+          console.log(`[resolve] #${id} ${rec.ticker} → ${outcome === 1 ? "LONG" : outcome === 2 ? "SHORT" : "DRAW"} via ${rp.via} (entry ${rec.anchor} → ${price})`);
         }
         // Mark resolved + persist BEFORE paying — guarantees no double-pay across a
         // restart (a failed payout is the operator's small loss, never a re-pay).
         rec.resolved = true;
-        persist();
+        if (registry.has(id)) persist();
 
         // Per-market creator cut from the on-chain fee (NOT a global accumulator delta).
         const fee = (await readMarket(BigInt(id))).fee;

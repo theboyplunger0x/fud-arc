@@ -1,7 +1,7 @@
 # FUD on Arc — Project Context & Handoff
 
 > Single source of context for this repo. If you open VS Code here fresh, read this first.
-> Last updated: 2026-06-18.
+> Last updated: 2026-06-25.
 
 ---
 
@@ -13,8 +13,8 @@ platform: users open LONG/SHORT P2P conviction markets on crypto tokens,
 settled on-chain, resolved by GenLayer. This repo is the **Arc-native, agent-driven**
 version built for the hackathon.
 
-**One-liner:** an agent (Telegram + X bot) turns social trade calls into P2P
-USDC conviction markets on Arc, resolved by GenLayer, where the **opener
+**One-liner:** a Telegram agent turns social trade calls into P2P
+USDC conviction markets on Arc, resolved by GenLayer with Pyth fallback, where the **opener
 (creator) earns a cut**.
 
 > FUD is live on Base with P2P conviction markets. On Arc we build the
@@ -54,9 +54,10 @@ market; the opener/creator earns a cut.
   call `@fudmarkets open long $100 on <CA> 1h` into an on-chain market. Parser
   is **regex, CA-only** (rejects tickers by design); Claude only fires on a
   complete intent to create + reply. Lazy P2P via Privy autosign.
-- **GenLayer** resolver — real, load-bearing for memecoins (Python Intelligent
-  Contract, validator consensus, 3% tolerance). It's the PARTNER's tech; don't
-  pitch it as FUD-owned, pitch the integration.
+- **GenLayer** resolver — real and wired in this repo for Arc resolution. The bot
+  deploys a Python Intelligent Contract at close, reads live price sources, and
+  falls back to Pyth if GenLayer fails or times out. It's the PARTNER's tech;
+  don't pitch it as FUD-owned, pitch the integration.
 - **Opener fee** = creator monetization, ALREADY on-chain in prod:
   `pct = min(20%, 0.05·√(loserPool/25))`, `opener$ = loserFee·pct`, table
   `opener_rewards`. On Arc (separate deploy) we can crank this cut freely
@@ -65,7 +66,7 @@ market; the opener/creator earns a cut.
 **2-week build delta:**
 1. ✅ USDC-native lazy-escrow on Arc (this repo, step 1 = minimal escrow).
 2. Lazy/signature-matched P2P (port LazyBet / createAndPlaceBet from Base).
-3. GenLayer → Arc settlement bridge (resolve off-chain → settle USDC on Arc).
+3. ✅ GenLayer → Arc settlement bridge (GenLayer-first price → `resolve()` on Arc, Pyth fallback).
 4. Bot (TG + X) pointed at Arc.
 5. Crank creator cut.
 6. Demo (TG live + interactive; X pre-staged due to 5-min poll), working URL, FE.
@@ -79,13 +80,15 @@ Goal: don't stay token-only; add FX + (later) stocks alongside crypto = "una bom
 - **Price source = pull oracle, NOT StableFX.** StableFX is a permissioned
   (KYB/AML institutions-only) RFQ **swap** rail, only prices USDC↔EURC, no
   read-only price endpoint → useless as a settlement feed. RULED OUT for the core.
+- **VERIFIED 2026-06-25:** GenLayer is now wired as the bot's primary resolver.
+  Crypto majors resolve through GenLayer over Pyth + Coinbase + CoinGecko;
+  FX resolves through GenLayer over the Pyth FX feed. Pyth Hermes remains the
+  direct fallback so markets never stall if GenLayer times out.
 - **VERIFIED 2026-06-19 on Arc testnet: Pyth IS deployed** at
   `0x2880aB155794e7179c9eE2e38200202908C17B43` — `getPriceUnsafe` reads EUR/USD +
-  BTC/USD on-chain with no push/fee/VAA needed. **FX markets settle by reading
-  Pyth on-chain on Arc** (Hermes off-chain is only the live UI ticker / fallback).
-  Stork is also deployed (`0xacC0a0cF…`) but has **no FX feed populated** (EUR/USD
-  reverts NotFound) + 5-6d-stale crypto → not usable. RedStone not on Arc.
-  **Decision: Pyth, not Stork.**
+  BTC/USD on-chain with no push/fee/VAA needed. Stork is also deployed
+  (`0xacC0a0cF…`) but has **no FX feed populated** (EUR/USD reverts NotFound) +
+  5-6d-stale crypto → not usable. RedStone not on Arc.
 - **Backend is close:** prod FUD already settles synthetic MULTI markets (no CA,
   Pyth/Coinbase canonical) for BTC/ETH/SOL. Adding EUR/USD or AAPL ≈ whitelist
   rows, near-zero oracle changes. The creation engine already accepts

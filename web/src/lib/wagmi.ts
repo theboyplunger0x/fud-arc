@@ -1,12 +1,17 @@
 import { createConfig, http } from "wagmi";
-import { injected } from "wagmi/connectors";
+import { injected, walletConnect } from "wagmi/connectors";
 import { arcTestnet } from "./arc";
 
 // Client-rendered app, so no SSR cookie hydration needed. Injected (MetaMask) to
-// start — WalletConnect / Privy connectors get added once their ids are set.
+// start; WalletConnect turns on when a public project id is configured.
+const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
+const connectors = walletConnectProjectId
+  ? [injected(), walletConnect({ projectId: walletConnectProjectId, showQrModal: true })]
+  : [injected()];
+
 export const wagmiConfig = createConfig({
   chains: [arcTestnet],
-  connectors: [injected()],
+  connectors,
   transports: { [arcTestnet.id]: http() },
   ssr: false,
 });
