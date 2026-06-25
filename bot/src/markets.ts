@@ -11,6 +11,9 @@ export const ASSETS: AssetDef[] = [
   { key: "ETH", ticker: "ETH", kind: "crypto", pythId: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace" },
   { key: "SOL", ticker: "SOL", kind: "crypto", pythId: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d" },
   { key: "EURUSD", ticker: "EUR/USD", kind: "fx", pythId: "a995d00bb36a63cef7fd2c287dc105fc8f3d93779f062f09551b0af3e81ec30b" },
+  { key: "GBPUSD", ticker: "GBP/USD", kind: "fx", pythId: "84c2dde9633d93d1bcad84e7dc41c9d56578b7ec52fabedc1f335d673df0a7c1" },
+  { key: "USDJPY", ticker: "USD/JPY", kind: "fx", pythId: "ef2c98c804ba503c6a707e38be4dfbb16683775f195b091252bf24693042fd52" },
+  { key: "AUDUSD", ticker: "AUD/USD", kind: "fx", pythId: "67a6f93030420c1c9e3fe37c1ab6b77966af82f995944a9fefce357a22854a80" },
 ];
 
 const norm = (s: string) => s.trim().toUpperCase().replace(/[/\-\s]/g, "");
