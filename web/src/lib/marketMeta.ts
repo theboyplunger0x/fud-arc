@@ -85,6 +85,27 @@ export async function fetchRemoteMeta(): Promise<Record<number, MarketMeta>> {
   }
 }
 
+export async function submitRemoteTake(input: {
+  marketId: number;
+  side: "long" | "short";
+  text: string;
+  user?: string;
+  address?: string;
+}): Promise<boolean> {
+  const text = input.text.replace(/\s+/g, " ").trim().slice(0, 80);
+  if (!META_URL || !text) return false;
+  try {
+    const res = await fetch(`${META_URL.replace(/\/$/, "")}/arc/takes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...input, text }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Distinct, non-null Pyth feed ids in a meta map (for batch price polling). */
 export function pythIdsOf(meta: Record<number, MarketMeta>): string[] {
   return [...new Set(Object.values(meta).map((m) => m.pythId).filter((x): x is string => !!x))];

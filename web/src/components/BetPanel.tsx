@@ -7,7 +7,9 @@ import { waitForTransactionReceipt } from "wagmi/actions";
 import { parseUnits } from "viem";
 import marketAbi from "@/lib/fudArcMarketAbi.json";
 import { MARKET_ADDRESS, USDC_ADDRESS, arcTestnet } from "@/lib/arc";
+import { submitRemoteTake } from "@/lib/marketMeta";
 import { wagmiConfig } from "@/lib/wagmi";
+import { useProfile } from "@/hooks/useProfile";
 
 const ERC20_ABI = [
   { type: "function", name: "allowance", stateMutability: "view", inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], outputs: [{ type: "uint256" }] },
@@ -16,6 +18,8 @@ const ERC20_ABI = [
 
 const FAUCET = "https://faucet.circle.com";
 const PRESETS = [1, 5, 10, 25];
+const SHORT_TAKES = ["this looks cooked", "fade me", "down only from here", "bear case still wins"];
+const LONG_TAKES = ["we are so back", "bulls take this", "up only from here", "this is the entry"];
 
 function shortErr(msg: string): string {
   if (/user rejected|denied/i.test(msg)) return "Rejected";
@@ -33,10 +37,12 @@ interface BetPanelProps {
 
 export default function BetPanel({ marketId, dk, longMult, shortMult, onDone }: BetPanelProps) {
   const { address, isConnected } = useAccount();
+  const { profile } = useProfile(address);
   const chainId = useChainId();
   const { switchChain, isPending: switching } = useSwitchChain();
   const [activeSide, setActiveSide] = useState<0 | 1 | null>(null); // null = picker closed
   const [amount, setAmount] = useState("");
+  const [message, setMessage] = useState("");
   const [step, setStep] = useState<"idle" | "approving" | "betting">("idle");
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false); // synchronous re-entrancy latch (double-click / Enter+click)
@@ -119,7 +125,15 @@ export default function BetPanel({ marketId, dk, longMult, shortMult, onDone }: 
       });
       // Best-effort wait — don't let a slow receipt hang the UI.
       await waitForTransactionReceipt(wagmiConfig, { hash: bh, timeout: 60_000 }).catch(() => {});
+      await submitRemoteTake({
+        marketId,
+        side: side === 0 ? "long" : "short",
+        text: message,
+        user: profile?.handle,
+        address,
+      });
       setAmount("");
+      setMessage("");
       setActiveSide(null);
       await onDone?.();
     } catch (e: unknown) {
@@ -133,6 +147,8 @@ export default function BetPanel({ marketId, dk, longMult, shortMult, onDone }: 
   const isLong = activeSide === 0;
   const sideColor = isLong ? "text-emerald-400" : "text-red-400";
   const mult = isLong ? longMult : shortMult;
+  const placeholderPool = isLong ? LONG_TAKES : SHORT_TAKES;
+  const placeholder = placeholderPool[marketId % placeholderPool.length];
 
   return (
     <AnimatePresence mode="wait" initial={false}>
@@ -161,7 +177,7 @@ export default function BetPanel({ marketId, dk, longMult, shortMult, onDone }: 
               {mult ? <span className={`ml-1 ${muted}`}>· {mult.toFixed(2)}x</span> : null}
             </span>
             <button
-              onClick={() => { setActiveSide(null); setAmount(""); setError(null); }}
+              onClick={() => { setActiveSide(null); setAmount(""); setMessage(""); setError(null); }}
               disabled={busy}
               className={`text-[12px] font-bold disabled:opacity-30 ${muted} hover:opacity-70`}
             >
@@ -175,19 +191,39 @@ export default function BetPanel({ marketId, dk, longMult, shortMult, onDone }: 
             </div>
           ) : (
             <>
-              {/* presets — bet instantly */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className={`text-[10px] font-black uppercase tracking-widest ${muted}`}>Your message</p>
+                  <span className={`text-[9px] font-bold tabular-nums ${message.length > 70 ? "text-amber-400" : muted}`}>{message.length}/80</span>
+                </div>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") void placeBet(Number(amount));
+                  }}
+                  maxLength={80}
+                  rows={2}
+                  placeholder={placeholder}
+                  className={`w-full resize-none rounded-xl px-3 py-2 text-[12px] font-bold italic leading-snug outline-none transition ${dk ? "bg-white/[0.04] text-white placeholder:text-white/20 focus:bg-white/[0.07]" : "bg-gray-100 text-gray-900 placeholder:text-gray-400 focus:bg-gray-200"}`}
+                />
+              </div>
+
+              {/* presets */}
               <div className="grid grid-cols-4 gap-1.5">
                 {PRESETS.map((a) => (
                   <button
                     key={a}
-                    onClick={() => placeBet(a)}
-                    className={`py-2 rounded-lg text-[11px] font-black transition ${dk ? "bg-white/[0.05] text-white/80 hover:bg-white/[0.12]" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+                    onClick={() => setAmount(String(a))}
+                    className={`py-2 rounded-lg text-[11px] font-black transition ${Number(amount) === a
+                      ? dk ? "bg-white text-[#0A0A0A]" : "bg-gray-900 text-white"
+                      : dk ? "bg-white/[0.05] text-white/80 hover:bg-white/[0.12]" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
                   >
                     ${a}
                   </button>
                 ))}
               </div>
-              {/* custom + Add */}
+              {/* custom + Take */}
               <div className="flex gap-1.5">
                 <div className="relative flex-1">
                   <span className={`absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold ${muted}`}>$</span>
@@ -209,7 +245,7 @@ export default function BetPanel({ marketId, dk, longMult, shortMult, onDone }: 
                     ? dk ? "bg-emerald-500/25 text-emerald-300 hover:bg-emerald-500/35" : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
                     : dk ? "bg-red-500/25 text-red-300 hover:bg-red-500/35" : "bg-red-100 text-red-700 hover:bg-red-200"}`}
                 >
-                  Add
+                  Take
                 </button>
               </div>
               {error && (

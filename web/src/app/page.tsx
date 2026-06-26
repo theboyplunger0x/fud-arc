@@ -15,8 +15,14 @@ import { readMarkets, MARKET_ADDRESS, EXPLORER, type Market } from "@/lib/arc";
 import { SEED_META, fetchRemoteMeta, pythIdsOf, type MarketMeta } from "@/lib/marketMeta";
 import { fetchPythLatestMany, type PythPrice } from "@/lib/pyth";
 
+type MarketView = "open" | "closed";
+
 function shortAddr(a: string): string {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+function isOpenMarket(m: Market, now: number): boolean {
+  return m.outcome === 0 && now < m.closesAt;
 }
 
 export default function Home() {
@@ -25,6 +31,7 @@ export default function Home() {
   const [markets, setMarkets] = useState<Market[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState<number>(() => Math.floor(Date.now() / 1000));
+  const [marketView, setMarketView] = useState<MarketView>("open");
   const [prices, setPrices] = useState<Record<string, PythPrice>>({});
   const [meta, setMeta] = useState<Record<number, MarketMeta>>(SEED_META);
   const metaRef = useRef<Record<number, MarketMeta>>(SEED_META);
@@ -38,6 +45,19 @@ export default function Home() {
       setError(e instanceof Error ? e.message : "Failed to read Arc");
     }
   }, []);
+
+  const refreshMeta = useCallback(async () => {
+    const remote = await fetchRemoteMeta();
+    const merged = Object.keys(remote).length ? { ...SEED_META, ...remote } : SEED_META;
+    metaRef.current = merged;
+    setMeta(merged);
+    return merged;
+  }, []);
+
+  const refreshBoard = useCallback(async () => {
+    await refreshMarkets();
+    await refreshMeta();
+  }, [refreshMarkets, refreshMeta]);
 
   useEffect(() => {
     let alive = true;
@@ -53,10 +73,8 @@ export default function Home() {
       }
     };
     const loadMeta = async () => {
-      const remote = await fetchRemoteMeta();
-      const merged = Object.keys(remote).length ? { ...SEED_META, ...remote } : SEED_META;
+      const merged = await refreshMeta();
       metaRef.current = merged;
-      if (alive) setMeta(merged);
     };
     const loadPrices = async () => {
       const p = await fetchPythLatestMany(pythIdsOf(metaRef.current));
@@ -75,16 +93,20 @@ export default function Home() {
       clearInterval(pricePoll);
       clearInterval(tick);
     };
-  }, []);
+  }, [refreshMeta]);
 
   const sorted = markets ? [...markets].sort((a, b) => b.id - a.id) : null;
-  const visible = sorted;
+  const openCount = sorted?.filter((m) => isOpenMarket(m, now)).length ?? 0;
+  const closedCount = sorted ? sorted.length - openCount : 0;
+  const visible = sorted?.filter((m) => (marketView === "open" ? isOpenMarket(m, now) : !isOpenMarket(m, now))) ?? null;
   const creatorEarned = (markets ?? []).reduce(
     (s, m) => (m.outcome === 1 || m.outcome === 2 ? s + (m.fee * BigInt(2000)) / BigInt(10000) : s),
     BigInt(0),
   );
   const muted = dk ? "text-white/40" : "text-gray-400";
   const label = `text-[10px] font-black uppercase tracking-[0.18em] ${dk ? "text-white/30" : "text-gray-400"}`;
+  const filterActive = dk ? "bg-white/12 text-white" : "bg-gray-200 text-gray-900";
+  const filterInactive = dk ? "text-white/30 hover:text-white/60" : "text-gray-400 hover:text-gray-700";
 
   return (
     <main className={`min-h-dvh ${dk ? "bg-[#0A0A0A] text-white" : "bg-white text-gray-900"}`}>
@@ -158,7 +180,29 @@ export default function Home() {
         {/* Markets (main) + sidebar: live calls + creator payouts */}
         <div className="mt-8 flex flex-col lg:flex-row gap-6">
           <div className="flex-1 min-w-0">
-            <h2 className={label}>Markets on-chain</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className={label}>Markets on-chain</h2>
+              <div
+                className={`flex items-center gap-1 rounded-2xl border p-1 ${dk ? "border-white/8 bg-white/[0.03]" : "border-gray-200 bg-gray-50"}`}
+                aria-label="Market status"
+              >
+                {([
+                  { id: "open", label: "Open", count: openCount },
+                  { id: "closed", label: "Closed", count: closedCount },
+                ] as const).map((view) => (
+                  <button
+                    key={view.id}
+                    type="button"
+                    aria-pressed={marketView === view.id}
+                    onClick={() => setMarketView(view.id)}
+                    className={`h-8 rounded-xl px-3 text-[11px] font-black transition-all ${marketView === view.id ? filterActive : filterInactive}`}
+                  >
+                    {view.label}
+                    <span className="ml-1.5 tabular-nums opacity-70">{view.count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             {error && (
               <div className={`mt-4 rounded-2xl border p-4 text-[12px] ${dk ? "border-red-500/30 bg-red-500/[0.06] text-red-300" : "border-red-200 bg-red-50 text-red-700"}`}>
@@ -174,7 +218,7 @@ export default function Home() {
 
             {!error && visible !== null && visible.length === 0 && (
               <div className={`mt-4 rounded-2xl border p-4 text-[12px] ${dk ? "border-white/8 bg-white/[0.03] text-white/40" : "border-gray-200 bg-gray-50 text-gray-400"}`}>
-                No markets yet — open one from the Telegram bot.
+                {marketView === "open" ? "No open markets — make one from the Telegram bot." : "No closed markets yet."}
               </div>
             )}
 
@@ -192,7 +236,7 @@ export default function Home() {
                       now={now}
                       dk={dk}
                       index={i}
-                      onBetDone={refreshMarkets}
+                      onBetDone={refreshBoard}
                     />
                   );
                 })}

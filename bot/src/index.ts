@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { Bot, InlineKeyboard, type Context } from "grammy";
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage } from "node:http";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { openAndMatch, usdcBalance, operatorAddress, readMarket, resolveMarket, payUsdc, nextMarketId, type Side, type Outcome } from "./arc.js";
@@ -85,6 +85,40 @@ function persist(): void {
 }
 
 const { registry, userWallets } = loadStore();
+
+const MAX_TAKE_TEXT = 80;
+const MAX_TAKES_PER_MARKET = 25;
+
+async function readJson(req: IncomingMessage, maxBytes = 4096): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let raw = "";
+    req.setEncoding("utf8");
+    req.on("data", (chunk) => {
+      raw += chunk;
+      if (raw.length > maxBytes) {
+        reject(new Error("body too large"));
+        req.destroy();
+      }
+    });
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(raw || "{}"));
+      } catch {
+        reject(new Error("bad json"));
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+function cleanTakeUser(user: unknown, fallback: string): string {
+  const cleaned = String(user ?? fallback).trim().replace(/^@/, "").replace(/[^\w.-]/g, "").slice(0, 24);
+  return cleaned || fallback;
+}
+
+function cleanTakeText(text: unknown): string {
+  return String(text ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_TAKE_TEXT);
+}
 
 const U = (n: number) => BigInt(Math.round(n * 1e6)); // USDC 6-dp units
 const DAY = 86400;
@@ -293,29 +327,58 @@ bot.command("start", (ctx) =>
 
 // ── Metadata endpoint for the FE (binds Railway $PORT) + healthcheck ──
 const PORT = Number(process.env.PORT ?? 3001);
-createServer((req, res) => {
+createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
     return;
   }
-  if (req.method !== "GET") {
-    res.statusCode = 405;
-    res.end("method not allowed");
-    return;
-  }
   const path = (req.url ?? "").split("?")[0];
-  if (path === "/arc/markets-meta") {
+  if (path === "/arc/markets-meta" && req.method === "GET") {
     res.setHeader("Content-Type", "application/json");
     const out: Record<string, MetaEntry> = {};
     for (const [id, m] of registry) {
       out[id] = { ticker: m.ticker, kind: m.kind, side: m.side, timeframe: m.timeframe, pythId: m.pythId, anchor: m.anchor, caller: m.caller, call: m.call, takes: m.takes };
     }
     res.end(JSON.stringify({ markets: out }));
-  } else if (path === "/" || path === "/health") {
+  } else if (path === "/arc/takes" && req.method === "POST") {
+    res.setHeader("Content-Type", "application/json");
+    try {
+      const body = (await readJson(req)) as { marketId?: unknown; side?: unknown; text?: unknown; user?: unknown; address?: unknown };
+      const marketId = Number(body.marketId);
+      const side = body.side === "long" || body.side === "short" ? body.side : null;
+      const text = cleanTakeText(body.text);
+      const fallbackUser = typeof body.address === "string" && /^0x[a-fA-F0-9]{40}$/.test(body.address)
+        ? `${body.address.slice(0, 6)}…${body.address.slice(-4)}`
+        : "anon";
+      const user = cleanTakeUser(body.user, fallbackUser);
+      if (!Number.isInteger(marketId) || marketId <= 0 || !side || !text) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: "invalid take" }));
+        return;
+      }
+      const rec = registry.get(marketId) ?? RESCUE_MARKETS[marketId];
+      if (!rec) {
+        res.statusCode = 404;
+        res.end(JSON.stringify({ error: "market metadata not found" }));
+        return;
+      }
+      rec.takes.push({ user, text, side });
+      if (rec.takes.length > MAX_TAKES_PER_MARKET) rec.takes = rec.takes.slice(-MAX_TAKES_PER_MARKET);
+      if (registry.has(marketId)) persist();
+      res.end(JSON.stringify({ ok: true, take: rec.takes[rec.takes.length - 1] }));
+    } catch (e) {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ error: (e as Error).message }));
+    }
+  } else if ((path === "/" || path === "/health") && req.method === "GET") {
     res.end("fud-arc bot ok");
+  } else if (path === "/arc/markets-meta" || path === "/arc/takes" || path === "/" || path === "/health") {
+    res.statusCode = 405;
+    res.end("method not allowed");
   } else {
     res.statusCode = 404;
     res.end("not found");
