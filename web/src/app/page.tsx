@@ -156,14 +156,16 @@ export default function Home() {
           Anyone can call from Telegram — no wallet, no signing ↗
         </p>
 
-        {/* Make a call (mobile only — the header has it on sm+) */}
+        {/* Cartelito — explicit "open a call from Telegram" CTA */}
         <a
           href="https://t.me/FudArcBot"
           target="_blank"
           rel="noopener noreferrer"
-          className="sm:hidden mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-emerald-400 text-[#0A0A0A] text-[13px] font-black"
+          className={`group mt-4 inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-[13px] font-bold transition ${dk ? "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-300 hover:bg-emerald-500/[0.14]" : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`}
         >
-          📣 Make a call →
+          <span>📣</span>
+          <span>Click here to open a call from Telegram</span>
+          <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </a>
 
         {/* Contract chip */}
