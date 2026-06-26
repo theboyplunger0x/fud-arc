@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { Bot, InlineKeyboard, type Context } from "grammy";
+import { Bot, GrammyError, InlineKeyboard, type Context } from "grammy";
 import { createServer, type IncomingMessage } from "node:http";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -327,7 +327,7 @@ bot.command("start", (ctx) =>
 
 // ── Metadata endpoint for the FE (binds Railway $PORT) + healthcheck ──
 const PORT = Number(process.env.PORT ?? 3001);
-createServer(async (req, res) => {
+const httpServer = createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -471,8 +471,48 @@ async function resolverTick(): Promise<void> {
     tickRunning = false;
   }
 }
-setInterval(() => {
+const resolverTimer = setInterval(() => {
   resolverTick().catch((e) => console.error("[resolver]", (e as Error)?.message));
 }, RESOLVE_POLL_MS);
 
-bot.start({ onStart: (me) => console.log(`[bot] @${me.username} live · operator ${operatorAddress}`) });
+function isPollingConflict(e: unknown): boolean {
+  return e instanceof GrammyError && e.error_code === 409;
+}
+
+async function sleep(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function startPolling(): Promise<void> {
+  let attempt = 0;
+  for (;;) {
+    try {
+      await bot.start({ onStart: (me) => console.log(`[bot] @${me.username} live · operator ${operatorAddress}`) });
+      return;
+    } catch (e) {
+      if (!isPollingConflict(e)) throw e;
+      attempt += 1;
+      const delay = Math.min(30_000, 5_000 + attempt * 5_000);
+      console.warn(`[bot] Telegram polling conflict during startup/rollout; retrying in ${Math.round(delay / 1000)}s`);
+      await sleep(delay);
+    }
+  }
+}
+
+async function shutdown(signal: string): Promise<void> {
+  console.log(`[bot] ${signal} received; shutting down`);
+  clearInterval(resolverTimer);
+  if (bot.isRunning()) {
+    await bot.stop().catch((e) => console.warn("[bot] stop failed:", (e as Error)?.message));
+  }
+  await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+  process.exit(0);
+}
+
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
+process.once("SIGINT", () => void shutdown("SIGINT"));
+
+startPolling().catch((e) => {
+  console.error("[bot] fatal:", (e as Error)?.message);
+  process.exit(1);
+});
