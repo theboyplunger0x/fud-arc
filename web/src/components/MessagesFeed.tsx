@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type Market } from "@/lib/arc";
 import type { MarketMeta } from "@/lib/marketMeta";
@@ -8,90 +7,90 @@ import type { MarketMeta } from "@/lib/marketMeta";
 interface Props {
   markets: Market[];
   meta: Record<number, MarketMeta>;
+  now: number;
   dk: boolean;
 }
 
-interface Msg {
-  id: number;
-  text: string;
-  user?: string;
-  side: "long" | "short";
+interface Entry {
+  id: string;
   ticker: string;
+  side: "long" | "short";
+  message: string;
+  user: string;
+  isOpener: boolean;
+  isOpen: boolean;
 }
 
-// Real messages only — the calls + takes attached to live markets (FUD's social
-// layer). No fabricated content; with few calls the feed simply stays short.
-function buildMessages(markets: Market[], meta: Record<number, MarketMeta>): Omit<Msg, "id">[] {
-  const out: Omit<Msg, "id">[] = [];
+// FUD-style tape: every call + take across markets, open messages first then closed
+// (so it's never empty while any market has social). Real data only — call/take meta.
+function buildEntries(markets: Market[], meta: Record<number, MarketMeta>, now: number): Entry[] {
+  const out: Entry[] = [];
   for (const m of [...markets].sort((a, b) => b.id - a.id)) {
     const mm = meta[m.id];
     if (!mm) continue;
-    if (mm.call) out.push({ text: mm.call, user: mm.caller, side: mm.side, ticker: mm.ticker });
-    for (const t of mm.takes ?? []) out.push({ text: t.text, user: t.user, side: t.side, ticker: mm.ticker });
+    const isOpen = m.outcome === 0 && now < m.closesAt;
+    if (mm.call) {
+      out.push({ id: `c${m.id}`, ticker: mm.ticker, side: mm.side, message: mm.call, user: mm.caller ?? "anon", isOpener: true, isOpen });
+    }
+    const takes = mm.takes ?? [];
+    for (let i = 0; i < takes.length; i++) {
+      out.push({ id: `t${m.id}-${i}`, ticker: mm.ticker, side: takes[i].side, message: takes[i].text, user: takes[i].user, isOpener: false, isOpen });
+    }
   }
-  return out;
+  // Open-market messages on top; closed ones fall in below (never hide them).
+  return [...out.filter((e) => e.isOpen), ...out.filter((e) => !e.isOpen)];
 }
 
-// FUD-style streaming "calls" feed — message bubbles that pass by on their own.
-export default function MessagesFeed({ markets, meta, dk }: Props) {
-  const [shown, setShown] = useState<Msg[]>([]);
-  const idx = useRef(0);
-  const dataRef = useRef({ markets, meta });
-
-  useEffect(() => {
-    dataRef.current = { markets, meta };
-  }, [markets, meta]);
-
-  useEffect(() => {
-    const tick = () => {
-      const pool = buildMessages(dataRef.current.markets, dataRef.current.meta);
-      if (!pool.length) return;
-      const msg = pool[idx.current % pool.length];
-      setShown((prev) => [...prev, { ...msg, id: idx.current }].slice(-5));
-      idx.current += 1;
-    };
-    tick();
-    const t = setInterval(tick, 2600);
-    return () => clearInterval(t);
-  }, []);
+export default function MessagesFeed({ markets, meta, now, dk }: Props) {
+  const entries = buildEntries(markets, meta, now);
 
   const card = dk ? "border-white/8 bg-white/[0.03]" : "border-gray-200 bg-white shadow-sm";
   const label = dk ? "text-white/30" : "text-gray-400";
-  const userText = dk ? "text-white/25" : "text-gray-400";
   const muted = dk ? "text-white/40" : "text-gray-500";
+  const divider = dk ? "border-white/[0.06]" : "border-gray-100";
+  const userColor = dk ? "text-white/30" : "text-gray-500";
 
   return (
-    <div className={`rounded-2xl border p-4 ${card}`}>
-      <div className="flex items-center gap-1.5 mb-3">
+    <div className={`rounded-2xl border ${card} overflow-hidden`}>
+      <div className="flex items-center gap-1.5 px-4 pt-4 pb-3">
         <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-        <span className={`text-[10px] font-black uppercase tracking-[0.18em] ${label}`}>Live calls</span>
+        <span className={`text-[10px] font-black uppercase tracking-[0.18em] ${label}`}>Messages</span>
       </div>
-      {shown.length === 0 ? (
-        <p className={`text-[11px] leading-relaxed ${muted}`}>
-          Calls land here as they&apos;re made. Tap <span className="font-bold">Make a call</span> → <span className="font-mono">/open</span> and add a tagline.
+      {entries.length === 0 ? (
+        <p className={`px-4 pb-4 text-[11px] leading-relaxed ${muted}`}>
+          Calls and takes land here as people make them — from the Telegram bot and on-chain bets.
         </p>
       ) : (
-        <div className="space-y-2 min-h-[120px]">
-          <AnimatePresence mode="popLayout" initial={false}>
-            {shown.map((msg) => {
-              const sideStrong = msg.side === "short" ? (dk ? "text-red-400" : "text-red-500") : (dk ? "text-emerald-400" : "text-emerald-500");
-              const quote = msg.side === "short" ? (dk ? "text-red-400/90" : "text-red-600") : (dk ? "text-emerald-400/90" : "text-emerald-600");
+        <div className="max-h-[460px] overflow-y-auto">
+          <AnimatePresence initial={false}>
+            {entries.map((e) => {
+              const sideColor = e.side === "long" ? "text-emerald-400" : "text-red-400";
+              const badge = e.isOpen
+                ? dk ? "bg-emerald-500/15 text-emerald-400" : "bg-emerald-50 text-emerald-600"
+                : dk ? "bg-white/[0.08] text-white/25" : "bg-gray-100 text-gray-400";
+              const msgColor = e.isOpener
+                ? dk ? "text-yellow-400/80" : "text-yellow-600"
+                : dk ? "text-white/45" : "text-gray-700";
               return (
-                <motion.p
-                  key={msg.id}
+                <motion.div
+                  key={e.id}
                   layout
-                  initial={{ opacity: 0, y: 6 }}
+                  initial={{ opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className={`text-[12px] leading-snug font-bold italic ${quote}`}
+                  transition={{ duration: 0.2 }}
+                  className={`px-4 py-2.5 border-b ${divider}`}
                 >
-                  <span className={`not-italic font-black mr-1 ${sideStrong}`}>
-                    {msg.side === "short" ? "▼" : "▲"} {msg.ticker}
-                  </span>
-                  &ldquo;{msg.text}&rdquo;
-                  {msg.user && <span className={`not-italic font-normal ml-1.5 text-[10px] ${userText}`}>— @{msg.user}</span>}
-                </motion.p>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className={`text-[11px] font-black ${sideColor}`}>{e.side === "long" ? "▲" : "▼"}</span>
+                    <span className="text-[12px] font-black">{e.ticker}</span>
+                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${badge}`}>{e.isOpen ? "open" : "closed"}</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <p className={`text-[11px] italic leading-snug flex-1 ${msgColor}`}>&ldquo;{e.message}&rdquo;</p>
+                    <span className={`text-[10px] font-bold shrink-0 ${userColor}`}>{e.user}</span>
+                  </div>
+                </motion.div>
               );
             })}
           </AnimatePresence>

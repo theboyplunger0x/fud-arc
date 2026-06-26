@@ -44,6 +44,33 @@ const publicClient = createPublicClient({ chain: arcTestnet, transport: http(RPC
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
+const BOT_HTTP = (process.env.BOT_HTTP_URL ?? "https://fud-arc-bot-production.up.railway.app").replace(/\/+$/, "");
+const TAKES = [
+  "sending it", "easy money", "free money tbh", "fading the crowd", "bears in shambles",
+  "chart looks clean", "locked in", "trust the process", "this prints", "no notes",
+  "calling it now", "ez", "bullish af", "we eating good", "bottom is in", "top signal",
+];
+
+// Post a take so it shows in the FE "Messages" tape — fills the social layer as bots bet.
+async function postTake(marketId: number, side: 0 | 1, user: string): Promise<void> {
+  await fetch(`${BOT_HTTP}/arc/takes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ marketId, side: side === 0 ? "long" : "short", text: TAKES[Math.floor(Math.random() * TAKES.length)], user }),
+  }).catch(() => {});
+}
+
+// Markets the bot has metadata for — takes only attach to these, so prefer them.
+async function metaIds(): Promise<Set<number>> {
+  try {
+    const r = await fetch(`${BOT_HTTP}/arc/markets-meta`);
+    const j = (await r.json()) as { markets?: Record<string, unknown> };
+    return new Set(Object.keys(j.markets ?? {}).map(Number));
+  } catch {
+    return new Set();
+  }
+}
+
 interface OpenMkt { id: number; longPool: bigint; shortPool: bigint; }
 async function openMarkets(): Promise<OpenMkt[]> {
   const next = Number(await publicClient.readContract({ address: MARKET, abi: MARKET_ABI, functionName: "nextMarketId" }));
@@ -82,6 +109,7 @@ async function trade(w: Wallet, mkt: OpenMkt): Promise<void> {
   const bh = await walletClient.writeContract({ address: MARKET, abi: MARKET_ABI, functionName: "bet", args: [BigInt(mkt.id), side, units] });
   const br = await publicClient.waitForTransactionReceipt({ hash: bh, timeout: 60_000 }).catch(() => null);
   if (br && br.status !== "success") throw new Error("bet reverted");
+  await postTake(mkt.id, side, w.name);
   console.log(`  ${w.name.padEnd(11)} $${amount} ${side === 0 ? "LONG " : "SHORT"} on #${mkt.id}   ${bh.slice(0, 12)}…`);
 }
 
@@ -91,9 +119,12 @@ for (let r = 0; r < ROUNDS; r++) {
     console.log("No open markets to trade.");
     break;
   }
-  console.log(`\nRound ${r + 1}/${ROUNDS} — ${mkts.length} open markets, ${wallets.length} traders`);
+  const metad = await metaIds();
+  const target = mkts.filter((m) => metad.has(m.id));
+  const pool = target.length ? target : mkts;
+  console.log(`\nRound ${r + 1}/${ROUNDS} — ${pool.length}/${mkts.length} markets with metadata, ${wallets.length} traders`);
   for (const w of wallets) {
-    const mkt = mkts[Math.floor(Math.random() * mkts.length)];
+    const mkt = pool[Math.floor(Math.random() * pool.length)];
     try {
       await trade(w, mkt);
     } catch (e) {

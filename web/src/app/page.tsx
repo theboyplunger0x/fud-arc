@@ -126,14 +126,6 @@ export default function Home() {
             FUD<span className="text-emerald-400">.</span>
           </span>
           <div className="flex items-center gap-2.5">
-            <a
-              href="https://t.me/FudArcBot"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hidden sm:inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-emerald-400 text-[#0A0A0A] text-[12px] font-black hover:bg-emerald-300 transition"
-            >
-              📣 Make a call
-            </a>
             <CurrencySelector dk={dk} />
             <DepositButton dk={dk} />
             <ConnectButton dk={dk} markets={markets ?? []} />
@@ -256,7 +248,7 @@ export default function Home() {
           </div>
 
           <aside className="lg:w-[310px] shrink-0 space-y-4">
-            <MessagesFeed markets={markets ?? []} meta={meta} dk={dk} />
+            <MessagesFeed markets={markets ?? []} meta={meta} now={now} dk={dk} />
             <CreatorFeesViewer markets={markets ?? []} meta={meta} dk={dk} />
             <FxStrip dk={dk} />
           </aside>
