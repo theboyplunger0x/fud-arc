@@ -120,6 +120,13 @@ function cleanTakeText(text: unknown): string {
   return String(text ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_TAKE_TEXT);
 }
 
+function publicMetaEntries(): Map<number, MarketRec> {
+  const out = new Map<number, MarketRec>();
+  for (const [rawId, rec] of Object.entries(RESCUE_MARKETS)) out.set(Number(rawId), rec);
+  for (const [id, rec] of registry) out.set(id, rec);
+  return out;
+}
+
 const U = (n: number) => BigInt(Math.round(n * 1e6)); // USDC 6-dp units
 const DAY = 86400;
 const TIMEFRAMES: Record<string, number> = { "15m": 900, "1h": 3600, "24h": 86400, "7d": 604800 };
@@ -340,7 +347,7 @@ const httpServer = createServer(async (req, res) => {
   if (path === "/arc/markets-meta" && req.method === "GET") {
     res.setHeader("Content-Type", "application/json");
     const out: Record<string, MetaEntry> = {};
-    for (const [id, m] of registry) {
+    for (const [id, m] of publicMetaEntries()) {
       out[id] = { ticker: m.ticker, kind: m.kind, side: m.side, timeframe: m.timeframe, pythId: m.pythId, anchor: m.anchor, caller: m.caller, call: m.call, takes: m.takes };
     }
     res.end(JSON.stringify({ markets: out }));
@@ -368,7 +375,8 @@ const httpServer = createServer(async (req, res) => {
       }
       rec.takes.push({ user, text, side });
       if (rec.takes.length > MAX_TAKES_PER_MARKET) rec.takes = rec.takes.slice(-MAX_TAKES_PER_MARKET);
-      if (registry.has(marketId)) persist();
+      if (!registry.has(marketId)) registry.set(marketId, rec);
+      persist();
       res.end(JSON.stringify({ ok: true, take: rec.takes[rec.takes.length - 1] }));
     } catch (e) {
       res.statusCode = 400;
