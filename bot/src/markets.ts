@@ -4,6 +4,8 @@ export interface AssetDef {
   ticker: string; // display, e.g. "BTC", "EUR/USD"
   kind: "crypto" | "fx";
   pythId: string; // hex, no 0x
+  aliases?: string[];
+  invertPyth?: boolean; // true when the product pair is the inverse of the Pyth feed.
 }
 
 export const ASSETS: AssetDef[] = [
@@ -12,7 +14,14 @@ export const ASSETS: AssetDef[] = [
   { key: "SOL", ticker: "SOL", kind: "crypto", pythId: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d" },
   { key: "EURUSD", ticker: "EUR/USD", kind: "fx", pythId: "a995d00bb36a63cef7fd2c287dc105fc8f3d93779f062f09551b0af3e81ec30b" },
   { key: "GBPUSD", ticker: "GBP/USD", kind: "fx", pythId: "84c2dde9633d93d1bcad84e7dc41c9d56578b7ec52fabedc1f335d673df0a7c1" },
-  { key: "USDJPY", ticker: "USD/JPY", kind: "fx", pythId: "ef2c98c804ba503c6a707e38be4dfbb16683775f195b091252bf24693042fd52" },
+  {
+    key: "JPYUSD",
+    ticker: "JPY/USD",
+    kind: "fx",
+    pythId: "ef2c98c804ba503c6a707e38be4dfbb16683775f195b091252bf24693042fd52",
+    aliases: ["USDJPY"],
+    invertPyth: true,
+  },
   { key: "AUDUSD", ticker: "AUD/USD", kind: "fx", pythId: "67a6f93030420c1c9e3fe37c1ab6b77966af82f995944a9fefce357a22854a80" },
 ];
 
@@ -20,7 +29,7 @@ const norm = (s: string) => s.trim().toUpperCase().replace(/[/\-\s]/g, "");
 
 export function resolveAsset(input: string): AssetDef | null {
   const n = norm(input);
-  return ASSETS.find((a) => norm(a.key) === n || norm(a.ticker) === n) ?? null;
+  return ASSETS.find((a) => norm(a.key) === n || norm(a.ticker) === n || (a.aliases ?? []).some((alias) => norm(alias) === n)) ?? null;
 }
 
 export const ASSET_LIST = ASSETS.map((a) => a.key).join(", ");
@@ -39,6 +48,15 @@ export async function pythPrice(pythId: string): Promise<number | null> {
   } catch {
     return null;
   }
+}
+
+export function quotePrice(raw: number, invertPyth?: boolean): number {
+  return invertPyth && raw > 0 ? 1 / raw : raw;
+}
+
+export async function assetPrice(asset: AssetDef): Promise<number | null> {
+  const raw = await pythPrice(asset.pythId);
+  return raw == null ? null : quotePrice(raw, asset.invertPyth);
 }
 
 export function fmtPrice(n: number): string {

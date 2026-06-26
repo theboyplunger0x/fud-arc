@@ -12,7 +12,7 @@ import { studionet, testnetBradbury } from "genlayer-js/chains";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { pythPrice } from "./markets.js";
+import { pythPrice, quotePrice } from "./markets.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ORACLE_PATH = join(__dirname, "intelligent-oracles/price_oracle_v2.py");
@@ -148,7 +148,7 @@ export interface ResolutionPrice {
  * Pyth Hermes as the fallback so a GenLayer outage/timeout never bricks settlement.
  * Returns null only if BOTH fail (caller should retry next tick).
  */
-export async function resolutionPrice(ticker: string, pythId: string): Promise<ResolutionPrice | null> {
+export async function resolutionPrice(ticker: string, pythId: string, invertPyth = false): Promise<ResolutionPrice | null> {
   if (isGenLayerConfigured()) {
     try {
       const src = CRYPTO_SOURCES[ticker.toUpperCase()] ?? { coinbasePair: "", coingeckoId: "" };
@@ -156,9 +156,10 @@ export async function resolutionPrice(ticker: string, pythId: string): Promise<R
         getPriceFromGenLayer(ticker, pythId, src.coinbasePair, src.coingeckoId, GL_NETWORK),
         GL_TIMEOUT_MS,
       );
-      console.log(`[genlayer] ${ticker} = ${gl.price} via [${gl.sources ?? []}] conf=${gl.confidence} oracle=${gl.oracleAddress}`);
+      const price = quotePrice(gl.price, invertPyth);
+      console.log(`[genlayer] ${ticker} = ${price} via [${gl.sources ?? []}] conf=${gl.confidence} oracle=${gl.oracleAddress}`);
       return {
-        price: gl.price,
+        price,
         via: `genlayer:${gl.network}`,
         oracleAddress: gl.oracleAddress,
         resolveHash: gl.resolveHash,
@@ -170,5 +171,5 @@ export async function resolutionPrice(ticker: string, pythId: string): Promise<R
     }
   }
   const p = await pythPrice(pythId);
-  return p == null ? null : { price: p, via: "pyth" };
+  return p == null ? null : { price: quotePrice(p, invertPyth), via: "pyth" };
 }

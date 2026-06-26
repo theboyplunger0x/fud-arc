@@ -13,6 +13,7 @@ export interface MarketMeta {
   side: "long" | "short"; // opener's side
   timeframe: string; // e.g. "15m" / "4H" / "7D" (from the bot)
   pythId: string | null; // Pyth feed id for the live price (hex, no 0x) — null for long-tail tokens
+  invertPyth?: boolean; // true when the displayed pair is the inverse of the Pyth feed.
   anchor?: number; // entry/anchor price at open (from the bot)
   caller?: string; // social: the handle that made the call
   call?: string; // social: the call's thesis / take
@@ -49,6 +50,7 @@ interface RemoteMeta {
   timeframe: string;
   anchor: number;
   pythId: string | null;
+  invertPyth?: boolean;
   caller?: string;
   call?: string;
   takes?: { user: string; text: string; side: "long" | "short" }[];
@@ -73,6 +75,7 @@ export async function fetchRemoteMeta(): Promise<Record<number, MarketMeta>> {
         side: m.side,
         timeframe: m.timeframe,
         pythId: m.pythId,
+        invertPyth: m.invertPyth,
         anchor: m.anchor,
         caller: m.caller,
         call: m.call,

@@ -25,6 +25,14 @@ function isOpenMarket(m: Market, now: number): boolean {
   return m.outcome === 0 && now < m.closesAt;
 }
 
+function marketLivePrice(mm: MarketMeta | null, prices: Record<string, PythPrice>): PythPrice | null {
+  if (!mm?.pythId) return null;
+  const raw = prices[mm.pythId.replace(/^0x/, "")] ?? null;
+  if (!raw) return null;
+  if (!mm.invertPyth) return raw;
+  return raw.price > 0 ? { ...raw, price: 1 / raw.price } : null;
+}
+
 export default function Home() {
   const { dk } = useAppTheme();
   const { fmt } = useCurrency();
@@ -105,6 +113,7 @@ export default function Home() {
   );
   const muted = dk ? "text-white/40" : "text-gray-400";
   const label = `text-[10px] font-black uppercase tracking-[0.18em] ${dk ? "text-white/30" : "text-gray-400"}`;
+  const sectionTitle = `text-[32px] font-black leading-[1.05] tracking-normal ${dk ? "text-white" : "text-gray-950"}`;
   const filterActive = dk ? "bg-white/12 text-white" : "bg-gray-200 text-gray-900";
   const filterInactive = dk ? "text-white/30 hover:text-white/60" : "text-gray-400 hover:text-gray-700";
 
@@ -181,7 +190,7 @@ export default function Home() {
         <div className="mt-8 flex flex-col lg:flex-row gap-6">
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className={label}>Markets on-chain</h2>
+              <h2 className={sectionTitle}>Markets on-chain</h2>
               <div
                 className={`flex items-center gap-1 rounded-2xl border p-1 ${dk ? "border-white/8 bg-white/[0.03]" : "border-gray-200 bg-gray-50"}`}
                 aria-label="Market status"
@@ -226,7 +235,7 @@ export default function Home() {
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 {visible.map((m, i) => {
                   const mm = meta[m.id] ?? null;
-                  const live = mm?.pythId ? prices[mm.pythId.replace(/^0x/, "")] ?? null : null;
+                  const live = marketLivePrice(mm, prices);
                   return (
                     <MarketCard
                       key={m.id}

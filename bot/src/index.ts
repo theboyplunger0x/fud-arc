@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { openAndMatch, usdcBalance, operatorAddress, readMarket, resolveMarket, payUsdc, nextMarketId, type Side, type Outcome } from "./arc.js";
 import { resolutionPrice } from "./genlayer.js";
-import { resolveAsset, pythPrice, fmtPrice, ASSETS, ASSET_LIST, type AssetDef } from "./markets.js";
+import { resolveAsset, assetPrice, fmtPrice, ASSETS, ASSET_LIST, type AssetDef } from "./markets.js";
 
 const TOKEN = process.env.BOT_TOKEN;
 if (!TOKEN) throw new Error("BOT_TOKEN missing");
@@ -19,6 +19,7 @@ interface MetaEntry {
   side: "long" | "short";
   timeframe: string;
   pythId: string;
+  invertPyth?: boolean;
   anchor: number;
   caller?: string;
   call?: string;
@@ -183,14 +184,14 @@ async function doOpen(
 
   await ctx.reply(`⏳ Opening ${side.toUpperCase()} ${asset.ticker} on Arc…`);
   try {
-    const anchor = await pythPrice(asset.pythId);
+    const anchor = await assetPrice(asset);
     const s: Side = side === "long" ? 0 : 1;
     const closesAt = Math.floor(now / 1000) + (TIMEFRAMES[timeframe] ?? DAY);
     const { marketId } = await openAndMatch({ closesAt, openerSide: s, openerAmount: U(amount), takerAmount: U(takerAmt) });
     const caller = ctx.from?.username ?? ctx.from?.first_name ?? "anon";
     registry.set(Number(marketId), {
       ticker: asset.ticker, kind: asset.kind, side, timeframe,
-      pythId: asset.pythId, anchor: anchor ?? 0, caller, call: call?.slice(0, 140), takes: [],
+      pythId: asset.pythId, invertPyth: asset.invertPyth, anchor: anchor ?? 0, caller, call: call?.slice(0, 140), takes: [],
       closesAt, resolved: false, callerUid: uid, payoutWallet: effectivePayoutWallet,
     });
     persist();
@@ -413,7 +414,18 @@ const httpServer = createServer(async (req, res) => {
     res.setHeader("Content-Type", "application/json");
     const out: Record<string, MetaEntry> = {};
     for (const [id, m] of publicMetaEntries()) {
-      out[id] = { ticker: m.ticker, kind: m.kind, side: m.side, timeframe: m.timeframe, pythId: m.pythId, anchor: m.anchor, caller: m.caller, call: m.call, takes: m.takes };
+      out[id] = {
+        ticker: m.ticker,
+        kind: m.kind,
+        side: m.side,
+        timeframe: m.timeframe,
+        pythId: m.pythId,
+        invertPyth: m.invertPyth,
+        anchor: m.anchor,
+        caller: m.caller,
+        call: m.call,
+        takes: m.takes,
+      };
     }
     res.end(JSON.stringify({ markets: out }));
   } else if (path === "/arc/takes" && req.method === "POST") {
@@ -507,7 +519,7 @@ async function resolverTick(): Promise<void> {
         const m = await readMarket(BigInt(id));
         if (now < m.closesAt) continue;
         if (m.outcome === 0) {
-          const rp = await resolutionPrice(rec.ticker, rec.pythId);
+          const rp = await resolutionPrice(rec.ticker, rec.pythId, rec.invertPyth);
           if (rp == null) continue; // GenLayer and Pyth fallback both failed → retry next tick
           const price = rp.price;
           // anchor 0 (price unavailable at open) → draw; otherwise by the move vs entry.
