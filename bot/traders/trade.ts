@@ -37,8 +37,8 @@ interface Wallet { name: string; address: string; privateKey: `0x${string}`; }
 const wallets: Wallet[] = JSON.parse(readFileSync(join(__dirname, "wallets.json"), "utf8"));
 
 const ROUNDS = Number(process.env.TRADE_ROUNDS ?? 1);
-const MIN_BET = Number(process.env.TRADE_MIN ?? 0.25);
-const MAX_BET = Number(process.env.TRADE_MAX ?? 1.5);
+const MIN_BET = Number(process.env.TRADE_MIN ?? 0.5);
+const MAX_BET = Number(process.env.TRADE_MAX ?? 0.5);
 
 const publicClient = createPublicClient({ chain: arcTestnet, transport: http(RPC) });
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -52,12 +52,20 @@ const TAKES = [
 ];
 
 // Post a take so it shows in the FE "Messages" tape — fills the social layer as bots bet.
-async function postTake(marketId: number, side: 0 | 1, user: string): Promise<void> {
+async function postTake(marketId: number, side: 0 | 1, user: string, text: string): Promise<void> {
   await fetch(`${BOT_HTTP}/arc/takes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ marketId, side: side === 0 ? "long" : "short", text: TAKES[Math.floor(Math.random() * TAKES.length)], user }),
+    body: JSON.stringify({ marketId, side: side === 0 ? "long" : "short", text, user }),
   }).catch(() => {});
+}
+
+// Two distinct taglines — two messages per trade.
+function twoTaglines(): [string, string] {
+  const a = TAKES[Math.floor(Math.random() * TAKES.length)];
+  let b = TAKES[Math.floor(Math.random() * TAKES.length)];
+  while (b === a) b = TAKES[Math.floor(Math.random() * TAKES.length)];
+  return [a, b];
 }
 
 // Markets the bot has metadata for — takes only attach to these, so prefer them.
@@ -109,7 +117,9 @@ async function trade(w: Wallet, mkt: OpenMkt): Promise<void> {
   const bh = await walletClient.writeContract({ address: MARKET, abi: MARKET_ABI, functionName: "bet", args: [BigInt(mkt.id), side, units] });
   const br = await publicClient.waitForTransactionReceipt({ hash: bh, timeout: 60_000 }).catch(() => null);
   if (br && br.status !== "success") throw new Error("bet reverted");
-  await postTake(mkt.id, side, w.name);
+  const [msg1, msg2] = twoTaglines();
+  await postTake(mkt.id, side, w.name, msg1);
+  await postTake(mkt.id, side, w.name, msg2);
   console.log(`  ${w.name.padEnd(11)} $${amount} ${side === 0 ? "LONG " : "SHORT"} on #${mkt.id}   ${bh.slice(0, 12)}…`);
 }
 
