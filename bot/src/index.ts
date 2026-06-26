@@ -31,6 +31,7 @@ interface MarketRec extends MetaEntry {
   closesAt: number;
   resolved: boolean;
   callerUid?: number;
+  payoutWallet?: string;
 }
 
 const RESCUE_MARKETS: Record<number, MarketRec> = {
@@ -137,6 +138,17 @@ const lastOpen = new Map<number, number>(); // tgUserId → ts
 
 const bot = new Bot(TOKEN);
 
+const WALLET_RE = /^0x[0-9a-fA-F]{40}$/;
+
+function normalizeWallet(input: string): string | null {
+  const addr = input.trim();
+  return WALLET_RE.test(addr) ? addr : null;
+}
+
+function shortWallet(addr: string): string {
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
 // ── Shared open path (used by quick commands + the guided flow) ──
 async function doOpen(
   ctx: Context,
@@ -146,11 +158,13 @@ async function doOpen(
   timeframe: string,
   amount: number,
   call?: string,
+  payoutWallet?: string | null,
 ): Promise<void> {
   if (!Number.isFinite(amount) || amount < MIN_AMOUNT || amount > MAX_AMOUNT) {
-    await ctx.reply(`Amount must be between ${MIN_AMOUNT} and ${MAX_AMOUNT} USDC.`);
+    await ctx.reply(`Market seed must be between ${MIN_AMOUNT} and ${MAX_AMOUNT} USDC.`);
     return;
   }
+  const effectivePayoutWallet = payoutWallet === null ? undefined : payoutWallet ?? userWallets.get(uid);
   const now = Date.now();
   if (now - (lastOpen.get(uid) ?? 0) < COOLDOWN_MS) {
     await ctx.reply("Easy — one market every 10s.");
@@ -166,7 +180,7 @@ async function doOpen(
     return;
   }
 
-  await ctx.reply(`⏳ Opening ${side.toUpperCase()} ${asset.ticker} for $${amount} on Arc…`);
+  await ctx.reply(`⏳ Opening ${side.toUpperCase()} ${asset.ticker} with a bot-funded $${amount} seed on Arc…`);
   try {
     const anchor = await pythPrice(asset.pythId);
     const s: Side = side === "long" ? 0 : 1;
@@ -176,13 +190,14 @@ async function doOpen(
     registry.set(Number(marketId), {
       ticker: asset.ticker, kind: asset.kind, side, timeframe,
       pythId: asset.pythId, anchor: anchor ?? 0, caller, call: call?.slice(0, 140), takes: [],
-      closesAt, resolved: false, callerUid: uid,
+      closesAt, resolved: false, callerUid: uid, payoutWallet: effectivePayoutWallet,
     });
     persist();
     await ctx.reply(
-      `✅ Market #${marketId} opened on Arc\n${side === "long" ? "📈 LONG" : "📉 SHORT"} ${asset.ticker} · ${timeframe} · $${amount}` +
-        `${call ? `\n“${call.slice(0, 140)}”` : ""}\nEntry: ${anchor ? "$" + fmtPrice(anchor) : "—"}\n\nLive → ${FE_URL}` +
-        `${userWallets.has(uid) ? "" : "\n\n💸 /wallet 0x… to get paid your creator cut when this resolves."}`,
+      `✅ Market #${marketId} opened on Arc\n${side === "long" ? "📈 LONG" : "📉 SHORT"} ${asset.ticker} · ${timeframe} · seed $${amount}` +
+        `${call ? `\n“${call.slice(0, 140)}”` : ""}\nEntry: ${anchor ? "$" + fmtPrice(anchor) : "—"}` +
+        `\nCreator cut → ${effectivePayoutWallet ? shortWallet(effectivePayoutWallet) : "no wallet yet (/wallet 0x… before resolve)"}` +
+        `\n\nLive → ${FE_URL}`,
     );
   } catch (e) {
     lastOpen.delete(uid);
@@ -199,10 +214,10 @@ async function quick(ctx: Context, side: "long" | "short"): Promise<void> {
   const args = (ctx.match?.toString() ?? "").trim().split(/\s+/).filter(Boolean);
   const asset = args[0] ? resolveAsset(args[0]) : null;
   if (!asset) {
-    await ctx.reply(`Usage: /${side} <SYMBOL> [amount]\nSymbols: ${ASSET_LIST}\ne.g. /${side} BTC 1`);
+    await ctx.reply(`Usage: /${side} <SYMBOL> [seed]\nThe bot funds the seed; no wallet is needed to make the call.\nSymbols: ${ASSET_LIST}\ne.g. /${side} BTC 1`);
     return;
   }
-  await doOpen(ctx, uid, asset, side, "24h", args[1] ? Number(args[1]) : 1);
+  await doOpen(ctx, uid, asset, side, "24h", args[1] ? Number(args[1]) : 1, undefined, userWallets.get(uid));
 }
 bot.command("long", (ctx) => quick(ctx, "long"));
 bot.command("short", (ctx) => quick(ctx, "short"));
@@ -213,7 +228,9 @@ interface Draft {
   timeframe?: string;
   side?: "long" | "short";
   amount?: number;
-  awaiting?: "amount" | "tagline";
+  call?: string;
+  payoutWallet?: string | null;
+  awaiting?: "amount" | "tagline" | "wallet";
 }
 const drafts = new Map<number, Draft>();
 
@@ -233,13 +250,38 @@ bot.command(["open", "new", "call"], async (ctx) => {
   await ctx.reply("📣 Make a call — pick an asset:", { reply_markup: assetKeyboard() });
 });
 
+function payoutKeyboard(uid: number): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  const saved = userWallets.get(uid);
+  if (saved) kb.text(`Use saved ${shortWallet(saved)}`, "w:saved").row();
+  kb.text("Paste wallet", "w:paste").text("Skip for now", "w:skip");
+  return kb;
+}
+
+async function askPayoutWallet(ctx: Context, uid: number, d: Draft, mode: "edit" | "reply"): Promise<void> {
+  d.awaiting = "wallet";
+  const saved = userWallets.get(uid);
+  const text =
+    "💸 Creator fee wallet\n" +
+    "The bot opens this market with the operator wallet, so you do not need a wallet to make the call.\n\n" +
+    "Where should the creator cut be sent after resolve?\n" +
+    `${saved ? `Saved: ${shortWallet(saved)}\n` : ""}` +
+    "Paste an Arc wallet (0x…), use saved, or skip and link one later with /wallet before resolve.";
+  const reply_markup = payoutKeyboard(uid);
+  if (mode === "edit") {
+    await ctx.editMessageText(text, { reply_markup }).catch(() => ctx.reply(text, { reply_markup }));
+  } else {
+    await ctx.reply(text, { reply_markup });
+  }
+}
+
 async function finalize(ctx: Context, uid: number, d: Draft, call?: string): Promise<void> {
   drafts.delete(uid);
   if (!d.asset || !d.timeframe || !d.side || !d.amount) {
     await ctx.reply("Incomplete — /open to start again.");
     return;
   }
-  await doOpen(ctx, uid, d.asset, d.side, d.timeframe, d.amount, call);
+  await doOpen(ctx, uid, d.asset, d.side, d.timeframe, d.amount, call ?? d.call, d.payoutWallet);
 }
 
 bot.on("callback_query:data", async (ctx) => {
@@ -265,23 +307,38 @@ bot.on("callback_query:data", async (ctx) => {
     });
   } else if (data.startsWith("s:")) {
     d.side = data.slice(2) as "long" | "short";
-    await ctx.editMessageText(`${d.asset?.ticker} ${d.side.toUpperCase()} · ${d.timeframe} — amount:`, {
+    await ctx.editMessageText(`${d.asset?.ticker} ${d.side.toUpperCase()} · ${d.timeframe} — market seed (bot-funded):`, {
       reply_markup: new InlineKeyboard().text("$1", "amt:1").text("$5", "amt:5").text("$10", "amt:10").row().text("✏️ Custom", "amt:custom"),
     });
   } else if (data.startsWith("amt:")) {
     const v = data.slice(4);
     if (v === "custom") {
       d.awaiting = "amount";
-      await ctx.editMessageText("Type the amount in USDC (e.g. 2.5):");
+      await ctx.editMessageText("Type the market seed in USDC (e.g. 2.5). The bot funds it; no wallet is needed to make the call.");
     } else {
       d.amount = Number(v);
       d.awaiting = "tagline";
-      await ctx.editMessageText(`Amount $${d.amount}. Add a message (your call), or tap Skip:`, {
-        reply_markup: new InlineKeyboard().text("Skip — open now", "skip"),
+      await ctx.editMessageText(`Seed $${d.amount}. Add a message (your call), or tap Skip:`, {
+        reply_markup: new InlineKeyboard().text("Skip message", "tagline:skip"),
       });
     }
-  } else if (data === "skip") {
-    await finalize(ctx, uid, d, undefined);
+  } else if (data === "tagline:skip") {
+    d.call = undefined;
+    await askPayoutWallet(ctx, uid, d, "edit");
+  } else if (data === "w:paste") {
+    d.awaiting = "wallet";
+    await ctx.editMessageText("Paste the Arc wallet that should receive creator fees (0x…), or /skip to open without one.");
+  } else if (data === "w:saved") {
+    const saved = userWallets.get(uid);
+    if (!saved) {
+      await askPayoutWallet(ctx, uid, d, "edit");
+      return;
+    }
+    d.payoutWallet = saved;
+    await finalize(ctx, uid, d);
+  } else if (data === "w:skip") {
+    d.payoutWallet = null;
+    await finalize(ctx, uid, d);
   }
 });
 
@@ -299,35 +356,63 @@ bot.on("message:text", async (ctx, next) => {
     }
     d.amount = n;
     d.awaiting = "tagline";
-    await ctx.reply(`Amount $${n}. Add a message (your call), or /skip:`);
+    await ctx.reply(`Seed $${n}. Add a message (your call), or /skip:`);
   } else if (d.awaiting === "tagline") {
-    await finalize(ctx, uid, d, text);
+    d.call = text;
+    await askPayoutWallet(ctx, uid, d, "reply");
+  } else if (d.awaiting === "wallet") {
+    const wallet = normalizeWallet(text);
+    if (!wallet) {
+      await ctx.reply("That does not look like an Arc/EVM wallet. Paste a 0x address, or /skip to open without one.");
+      return;
+    }
+    d.payoutWallet = wallet;
+    userWallets.set(uid, wallet);
+    persist();
+    await finalize(ctx, uid, d);
   }
 });
 
 bot.command("skip", async (ctx) => {
   const uid = ctx.from?.id;
   const d = uid ? drafts.get(uid) : undefined;
-  if (uid && d) await finalize(ctx, uid, d, undefined);
+  if (!uid || !d) return;
+  if (d.awaiting === "tagline") {
+    d.call = undefined;
+    await askPayoutWallet(ctx, uid, d, "reply");
+  } else if (d.awaiting === "wallet") {
+    d.payoutWallet = null;
+    await finalize(ctx, uid, d);
+  } else {
+    await finalize(ctx, uid, d, undefined);
+  }
 });
 
 bot.command("wallet", async (ctx) => {
   const uid = ctx.from?.id;
   if (!uid) return;
   const addr = (ctx.match?.toString() ?? "").trim();
-  if (!/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+  const wallet = normalizeWallet(addr);
+  if (!wallet) {
     await ctx.reply("Usage: /wallet 0x… — your Arc address. That's where the agent pays your creator cut when your calls resolve.");
     return;
   }
-  userWallets.set(uid, addr);
+  userWallets.set(uid, wallet);
   persist();
-  await ctx.reply(`✅ Wallet linked. The agent will pay your creator cut here when your calls resolve:\n${addr}`);
+  const d = drafts.get(uid);
+  if (d?.awaiting === "wallet") {
+    d.payoutWallet = wallet;
+    await ctx.reply(`✅ Wallet linked for this call: ${wallet}`);
+    await finalize(ctx, uid, d);
+    return;
+  }
+  await ctx.reply(`✅ Wallet linked. The agent will pay your creator cut here when your calls resolve:\n${wallet}`);
 });
 
 bot.command("start", (ctx) =>
   ctx.reply(
     "FUD-arc agent — turn a call into a real on-chain market on Arc.\n\n" +
-      "📣 Guided:  /open\n⚡ Quick:  /long BTC 1  ·  /short ETH 1\n💸 /wallet 0x… — get paid your creator cut when your calls resolve\n\n" +
+      "📣 Guided:  /open\n⚡ Quick:  /long BTC 1  ·  /short ETH 1\n💸 /wallet 0x… — where creator fees should be paid\n\n" +
       `Symbols: ${ASSET_LIST}`,
   ),
 );
@@ -398,9 +483,9 @@ bot.catch((err) => console.error("[bot] error:", (err.error as Error)?.message ?
 // Register the command menu so they show up under "/" in Telegram.
 await bot.api.setMyCommands([
   { command: "open", description: "Make a call → open a market" },
-  { command: "long", description: "Quick long (e.g. /long BTC 1)" },
-  { command: "short", description: "Quick short (e.g. /short ETH 1)" },
-  { command: "wallet", description: "Link your wallet for creator payouts" },
+  { command: "long", description: "Quick long with bot-funded seed" },
+  { command: "short", description: "Quick short with bot-funded seed" },
+  { command: "wallet", description: "Set creator fee payout wallet" },
   { command: "start", description: "What this bot does" },
 ]);
 
@@ -460,7 +545,7 @@ async function resolverTick(): Promise<void> {
         let cut = (fee * OPENER_CUT_BPS) / BPS;
         if (cut > MAX_CUT_UNITS) cut = 0n; // guard against an unexpected value
         const uid = rec.callerUid;
-        const wallet = uid != null ? userWallets.get(uid) : undefined;
+        const wallet = rec.payoutWallet ?? (uid != null ? userWallets.get(uid) : undefined);
         if (cut > 0n && wallet) {
           await payUsdc(wallet, cut);
           const usdc = (Number(cut) / 1e6).toFixed(4);
@@ -470,6 +555,8 @@ async function resolverTick(): Promise<void> {
               .sendMessage(uid, `💸 Your call #${id} (${rec.ticker} ${rec.side.toUpperCase()}) resolved.\nCreator cut paid: ${usdc} USDC → your wallet.`)
               .catch(() => {});
           }
+        } else if (cut > 0n) {
+          console.log(`[pay] #${id} creator cut accrued but no payout wallet is set`);
         }
       } catch (e) {
         console.error(`[resolve] #${id} failed:`, (e as Error)?.message);
