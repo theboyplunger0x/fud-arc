@@ -104,9 +104,11 @@ export default function Home() {
   }, [refreshMeta]);
 
   const sorted = markets ? [...markets].sort((a, b) => b.id - a.id) : null;
-  const openCount = sorted?.filter((m) => isOpenMarket(m, now)).length ?? 0;
-  const closedCount = sorted ? sorted.length - openCount : 0;
-  const visible = sorted?.filter((m) => (marketView === "open" ? isOpenMarket(m, now) : !isOpenMarket(m, now))) ?? null;
+  // Only markets we can label (seed / RESCUE / bot-registry meta) — hide bare "Market #N".
+  const labeled = sorted?.filter((m) => meta[m.id]) ?? null;
+  const openCount = labeled?.filter((m) => isOpenMarket(m, now)).length ?? 0;
+  const closedCount = labeled ? labeled.length - openCount : 0;
+  const visible = labeled?.filter((m) => (marketView === "open" ? isOpenMarket(m, now) : !isOpenMarket(m, now))) ?? null;
   const creatorEarned = (markets ?? []).reduce(
     (s, m) => (m.outcome === 1 || m.outcome === 2 ? s + (m.fee * BigInt(2000)) / BigInt(10000) : s),
     BigInt(0),
