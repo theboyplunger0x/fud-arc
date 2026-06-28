@@ -69,6 +69,60 @@ const RESCUE_MARKETS: Record<number, MarketRec> = {
     anchor: 0.006182647780738579, call: "yen keeps bleeding — short jpy", caller: "fudarc",
     takes: [], closesAt: 1782595188, resolved: false,
   },
+  // 1-week markets (opened 2026-06-28) so the board stays populated for the demo.
+  18: {
+    ticker: "SOL", kind: "crypto", side: "long", timeframe: "7d",
+    pythId: "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d",
+    anchor: 71.52191472, call: "sol coiling under resistance — long the breakout into next week", caller: "fudarc",
+    takes: [
+      { user: "bot_alpha", text: "sol szn loading", side: "long" },
+      { user: "bot_bravo", text: "free money tbh", side: "long" },
+      { user: "bot_charlie", text: "this dumps, fading", side: "short" },
+      { user: "bot_delta", text: "sending it", side: "long" },
+      { user: "bot_echo", text: "bottom is in", side: "long" },
+    ],
+    closesAt: 1783258087, resolved: false,
+  },
+  19: {
+    ticker: "BTC", kind: "crypto", side: "long", timeframe: "7d",
+    pythId: "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
+    anchor: 60022.19499998, call: "btc holding the range, accumulation szn — long for the week", caller: "fudarc",
+    takes: [
+      { user: "bot_bravo", text: "accumulation confirmed", side: "long" },
+      { user: "bot_charlie", text: "this prints", side: "long" },
+      { user: "bot_delta", text: "top is in, short it", side: "short" },
+      { user: "bot_alpha", text: "we eating good", side: "long" },
+      { user: "bot_echo", text: "easy money", side: "long" },
+      { user: "bot_bravo", text: "bears in shambles", side: "long" },
+    ],
+    closesAt: 1783258089, resolved: false,
+  },
+  20: {
+    ticker: "GBP/USD", kind: "fx", side: "short", timeframe: "7d",
+    pythId: "84c2dde9633d93d1bcad84e7dc41c9d56578b7ec52fabedc1f335d673df0a7c1",
+    anchor: 1.3195400000000002, call: "cable overextended, dollar bid back — short gbp/usd", caller: "fudarc",
+    takes: [
+      { user: "bot_charlie", text: "cable rejected, short", side: "short" },
+      { user: "bot_alpha", text: "dollar wrecking ball", side: "short" },
+      { user: "bot_bravo", text: "nah pound rips, long", side: "long" },
+      { user: "bot_delta", text: "locked in short", side: "short" },
+      { user: "bot_echo", text: "free money tbh", side: "short" },
+    ],
+    closesAt: 1783258096, resolved: false,
+  },
+  21: {
+    ticker: "EUR/USD", kind: "fx", side: "long", timeframe: "7d",
+    pythId: "a995d00bb36a63cef7fd2c287dc105fc8f3d93779f062f09551b0af3e81ec30b",
+    anchor: 1.13833, call: "euro reclaiming, dollar topping out — long eur/usd into next week", caller: "fudarc",
+    takes: [
+      { user: "bot_delta", text: "euro szn, long it", side: "long" },
+      { user: "bot_echo", text: "dollar topping, agreed", side: "long" },
+      { user: "bot_charlie", text: "nah dxy rips, fading", side: "short" },
+      { user: "bot_alpha", text: "free money tbh", side: "long" },
+      { user: "bot_bravo", text: "locked in", side: "long" },
+    ],
+    closesAt: 1783259408, resolved: false,
+  },
 };
 
 // Persisted to a JSON file (Railway volume via DATA_DIR) so bot-opened markets +

@@ -31,14 +31,14 @@ const RPC = process.env.ARC_RPC ?? "https://rpc.testnet.arc.network";
 const arc = defineChain({ id: 5042002, name: "Arc Testnet", nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 }, rpcUrls: { default: { http: [RPC] } }, testnet: true });
 
 const U = (n: number) => BigInt(Math.round(n * 1e6));
-const TF = 86400; // 24h
+const TF = 604800; // 1 week — keep markets open for the demo (24h ones expire too fast)
+const TF_LABEL = "7d";
 const AMT = 0.6; // operator funds each side; bots add liquidity on top
-const TOPUP_MIN = 8;
-const TOPUP_AMT = 10;
+const TOPUP_MIN = 2;
+const TOPUP_AMT = 5;
 
 const PLAN = [
-  { sym: "EURUSD", side: "long" as const, call: "dollar fading, euro bid — eur/usd long", caller: "fudarc" },
-  { sym: "JPYUSD", side: "short" as const, call: "yen keeps bleeding — short jpy", caller: "fudarc" },
+  { sym: "EURUSD", side: "long" as const, call: "euro reclaiming, dollar topping out — long eur/usd into next week", caller: "fudarc" },
 ];
 
 const bal0 = Number(await usdcBalance()) / 1e6;
@@ -67,6 +67,6 @@ for (const p of PLAN) {
 console.log("\n=== RESCUE_MARKETS entries (paste into bot/src/index.ts) ===");
 for (const e of out) {
   const inv = e.invertPyth ? " invertPyth: true," : "";
-  console.log(`  ${e.id}: { ticker: ${JSON.stringify(e.ticker)}, kind: ${JSON.stringify(e.kind)}, side: ${JSON.stringify(e.side)}, pythId: ${JSON.stringify(e.pythId)},${inv} anchor: ${e.anchor}, call: ${JSON.stringify(e.call)}, caller: ${JSON.stringify(e.caller)}, takes: [], closesAt: ${e.closesAt}, resolved: false },`);
+  console.log(`  ${e.id}: { ticker: ${JSON.stringify(e.ticker)}, kind: ${JSON.stringify(e.kind)}, timeframe: ${JSON.stringify(TF_LABEL)}, side: ${JSON.stringify(e.side)}, pythId: ${JSON.stringify(e.pythId)},${inv} anchor: ${e.anchor}, call: ${JSON.stringify(e.call)}, caller: ${JSON.stringify(e.caller)}, takes: [], closesAt: ${e.closesAt}, resolved: false },`);
 }
 process.exit(0);
