@@ -124,9 +124,21 @@ export default function Home() {
       {/* Header bar — sticky */}
       <header className={`sticky top-0 z-20 border-b backdrop-blur-md ${dk ? "bg-[#0A0A0A]/80 border-white/[0.07]" : "bg-white/85 border-gray-200"}`}>
         <div className="mx-auto max-w-7xl px-5 h-14 flex items-center justify-between">
-          <span className="text-[24px] font-black tracking-[-0.03em] leading-none select-none">
-            FUD<span className="text-emerald-400">.</span>
-          </span>
+          <div className="flex items-center gap-3 sm:gap-4">
+            <span className="text-[24px] font-black tracking-[-0.03em] leading-none select-none">
+              FUD<span className="text-emerald-400">.</span>
+            </span>
+            <a
+              href="https://t.me/FudArcBot"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`group inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-[13px] font-bold transition ${dk ? "border-emerald-500/30 bg-emerald-500/[0.10] text-emerald-300 hover:bg-emerald-500/[0.16]" : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`}
+            >
+              <span>📣</span>
+              <span>Click here to open a call from Telegram</span>
+              <span className="transition-transform group-hover:translate-x-0.5">→</span>
+            </a>
+          </div>
           <div className="flex items-center gap-2.5">
             <CurrencySelector dk={dk} />
             <DepositButton dk={dk} />
@@ -141,27 +153,6 @@ export default function Home() {
           Social calls become <span className="text-emerald-400">P2P</span> markets on{" "}
           <span className="text-emerald-400">Arc</span>.
         </h1>
-        <p className={`mt-3 max-w-2xl text-[13px] leading-relaxed ${dk ? "text-white/50" : "text-gray-600"}`}>
-          An agent turns a Telegram call into a USDC conviction market — open, take the other side,
-          resolve, pay out — all on-chain. The creator who made the call earns a cut.
-        </p>
-
-        <p className={`mt-2 text-[11px] font-semibold ${dk ? "text-white/35" : "text-gray-400"}`}>
-          Anyone can call from Telegram — no wallet, no signing ↗
-        </p>
-
-        {/* Cartelito — explicit "open a call from Telegram" CTA */}
-        <a
-          href="https://t.me/FudArcBot"
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`group mt-4 inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-[13px] font-bold transition ${dk ? "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-300 hover:bg-emerald-500/[0.14]" : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"}`}
-        >
-          <span>📣</span>
-          <span>Click here to open a call from Telegram</span>
-          <span className="transition-transform group-hover:translate-x-0.5">→</span>
-        </a>
-
         {/* Contract chip */}
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <span className={`text-[11px] font-bold px-3 py-1 rounded-full ${dk ? "bg-white/[0.04] border border-white/10" : "bg-gray-100 border border-gray-200"}`}>
@@ -192,8 +183,16 @@ export default function Home() {
           </p>
         </div>
 
+        {/* Quick-links — jump to sections (x402 stays discoverable without a noisy sticky bar) */}
+        <div className="mt-5 flex flex-wrap items-center gap-1.5 text-[12px] font-bold">
+          <a href="#markets" className={`px-3 py-1.5 rounded-lg transition ${dk ? "text-white/55 hover:text-white hover:bg-white/[0.06]" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"}`}>Markets</a>
+          <a href="#x402" className={`px-3 py-1.5 rounded-lg transition ${dk ? "text-emerald-300 hover:bg-emerald-500/[0.12]" : "text-emerald-700 hover:bg-emerald-50"}`}>x402</a>
+          <a href="#how-it-works" className={`px-3 py-1.5 rounded-lg transition ${dk ? "text-white/55 hover:text-white hover:bg-white/[0.06]" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"}`}>How it works</a>
+          <a href="#founder" className={`px-3 py-1.5 rounded-lg transition ${dk ? "text-white/55 hover:text-white hover:bg-white/[0.06]" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"}`}>Founder</a>
+        </div>
+
         {/* Markets (main) + sidebar: live calls + creator payouts */}
-        <div className="mt-8 flex flex-col lg:flex-row gap-6">
+        <div id="markets" className="mt-8 scroll-mt-20 flex flex-col lg:flex-row gap-6">
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className={sectionTitle}>Markets on-chain</h2>
@@ -260,14 +259,15 @@ export default function Home() {
           </div>
 
           <aside className="lg:w-[310px] shrink-0 space-y-4">
-            <MessagesFeed markets={markets ?? []} meta={meta} now={now} dk={dk} />
             <CreatorFeesViewer markets={markets ?? []} meta={meta} dk={dk} />
+            <MessagesFeed markets={markets ?? []} meta={meta} now={now} dk={dk} />
             <FxStrip dk={dk} />
           </aside>
         </div>
 
-        {/* x402 — fud-arc is also an agent that GETS PAID (RFB #1): agent-readable paid signals */}
-        <div className={`mt-10 rounded-2xl border p-5 sm:p-6 ${dk ? "border-emerald-500/25 bg-emerald-500/[0.05]" : "border-emerald-200 bg-emerald-50/70"}`}>
+        {/* x402 — FudAgent is also an agent that GETS PAID (RFB #1): agent-readable paid signals */}
+        <h2 id="x402" className={`mt-12 scroll-mt-20 ${label}`}>Agent API · x402</h2>
+        <div className={`mt-4 rounded-2xl border p-5 sm:p-6 ${dk ? "border-emerald-500/25 bg-emerald-500/[0.05]" : "border-emerald-200 bg-emerald-50/70"}`}>
           <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -305,7 +305,7 @@ export default function Home() {
         </div>
 
         {/* How it works */}
-        <h2 className={`mt-12 ${label}`}>How it works</h2>
+        <h2 id="how-it-works" className={`mt-12 scroll-mt-20 ${label}`}>How it works</h2>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           {[
             { n: "01", t: "Call", d: "Someone posts a call in Telegram." },
@@ -325,9 +325,36 @@ export default function Home() {
           ))}
         </div>
 
+        {/* The founder */}
+        <h2 id="founder" className={`mt-12 scroll-mt-20 ${label}`}>The founder</h2>
+        <div className={`mt-4 flex items-center gap-4 rounded-2xl border p-4 sm:p-5 ${dk ? "border-white/8 bg-white/[0.03]" : "border-gray-200 bg-gray-50"}`}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/founder.jpg"
+            alt="Marcos Lanzani"
+            className={`h-16 w-16 sm:h-20 sm:w-20 rounded-xl object-cover object-top shrink-0 ${dk ? "bg-white/[0.06]" : "bg-gray-200"}`}
+          />
+          <div className="min-w-0">
+            <div className="text-[15px] sm:text-[17px] font-black">Marcos Lanzani</div>
+            <div className={`mt-1 text-[12px] sm:text-[13px] leading-relaxed ${dk ? "text-white/60" : "text-gray-600"}`}>
+              <span className="font-bold">Founder &amp; solo builder of FUD.</span>
+              <br />
+              Building the product. Growing the community. Shipping in public.
+            </div>
+            <a
+              href="https://x.com/theboymarc0x"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`mt-2 inline-flex items-center gap-1 text-[12px] font-bold ${dk ? "text-emerald-300 hover:text-emerald-200" : "text-emerald-700 hover:text-emerald-600"}`}
+            >
+              @theboymarc0x ↗
+            </a>
+          </div>
+        </div>
+
         {/* Footer */}
         <div className={`mt-12 border-t pt-6 text-[11px] ${dk ? "border-white/[0.06] text-white/30" : "border-gray-200 text-gray-400"}`}>
-          FUD is live on Base · this is the Arc build · resolved by GenLayer with Pyth fallback ·{" "}
+          FUD is live on Base · this is the Arc build · resolved by GenLayer with Pyth fallback · multi-currency via StableFX ·{" "}
           <a className="underline hover:no-underline" href="https://github.com/theboyplunger0x/fud-arc" target="_blank" rel="noopener noreferrer">
             open-source
           </a>
