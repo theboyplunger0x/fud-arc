@@ -182,6 +182,16 @@ export default function Home() {
           )}
         </div>
 
+        {/* Big clarity banner — these are REAL, tradeable, on-chain markets you can open yourself */}
+        <div className={`mt-6 rounded-2xl border p-4 sm:p-5 ${dk ? "border-emerald-500/25 bg-emerald-500/[0.07]" : "border-emerald-200 bg-emerald-50"}`}>
+          <p className="text-[18px] sm:text-[26px] font-black leading-[1.15] tracking-tight">
+            These markets are <span className="text-emerald-400">real</span> and <span className="text-emerald-400">tradeable</span> — and you can open your own.
+          </p>
+          <p className={`mt-2 text-[12px] sm:text-[14px] leading-relaxed ${dk ? "text-white/60" : "text-gray-600"}`}>
+            Open one straight from <span className="font-bold">Telegram</span> — no wallet, nothing to sign. Anyone connects a wallet and takes the other side, and every bet, payout and resolution happens <span className="font-bold">on-chain on Arc</span>.
+          </p>
+        </div>
+
         {/* Markets (main) + sidebar: live calls + creator payouts */}
         <div className="mt-8 flex flex-col lg:flex-row gap-6">
           <div className="flex-1 min-w-0">
@@ -254,6 +264,44 @@ export default function Home() {
             <CreatorFeesViewer markets={markets ?? []} meta={meta} dk={dk} />
             <FxStrip dk={dk} />
           </aside>
+        </div>
+
+        {/* x402 — fud-arc is also an agent that GETS PAID (RFB #1): agent-readable paid signals */}
+        <div className={`mt-10 rounded-2xl border p-5 sm:p-6 ${dk ? "border-emerald-500/25 bg-emerald-500/[0.05]" : "border-emerald-200 bg-emerald-50/70"}`}>
+          <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[18px]">🤖</span>
+                <h3 className="text-[16px] sm:text-[20px] font-black tracking-tight">
+                  <span className="text-emerald-400">FudAgent</span> gets paid by other agents.
+                </h3>
+              </div>
+              <p className={`mt-2 text-[12px] sm:text-[13px] leading-relaxed ${dk ? "text-white/60" : "text-gray-600"}`}>
+                Other agents pay a <span className="font-bold">0.001 USDC</span> nanopayment via{" "}
+                <span className="font-bold">x402</span> to read these live signals — verified by a real
+                on-chain USDC transfer on Arc. It doesn&apos;t just pay agents, it gets paid by them.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 lg:w-[300px] shrink-0">
+              <a
+                href="https://fud-arc-hackaton.vercel.app/api/agent/signals"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`group inline-flex items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 font-mono text-[12px] transition ${dk ? "border-white/10 bg-black/30 text-emerald-300 hover:bg-black/50" : "border-gray-200 bg-white text-emerald-700 hover:bg-gray-50"}`}
+              >
+                <span>GET /api/agent/signals</span>
+                <span className="text-[11px] opacity-70 transition-transform group-hover:translate-x-0.5">402 ↗</span>
+              </a>
+              <a
+                href={`${EXPLORER}/tx/0x1996ae10abd0aa6541ce396ec9581e4d667b5185a39ee4b9872927889ecda2ed`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`text-[11px] font-semibold ${dk ? "text-white/45 hover:text-white/70" : "text-gray-400 hover:text-gray-600"}`}
+              >
+                ✓ see a real settle on arcscan ↗
+              </a>
+            </div>
+          </div>
         </div>
 
         {/* How it works */}

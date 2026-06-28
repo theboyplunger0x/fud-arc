@@ -38,7 +38,7 @@ const TOPUP_MIN = 2;
 const TOPUP_AMT = 5;
 
 const PLAN = [
-  { sym: "EURUSD", side: "long" as const, call: "euro reclaiming, dollar topping out — long eur/usd into next week", caller: "fudarc" },
+  { sym: "EURUSD", side: "long" as const, call: "euro reclaiming, dollar topping out — long eur/usd into next week", caller: "fudagent" },
 ];
 
 const bal0 = Number(await usdcBalance()) / 1e6;
