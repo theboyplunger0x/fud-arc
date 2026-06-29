@@ -69,9 +69,12 @@ interface Signal {
 
 /** Serialize OPEN markets (outcome 0) into agent-readable signals. */
 function toSignals(markets: Market[], meta: Record<number, MarketMeta>): Signal[] {
-  // Only sell LABELED markets (a known ticker) — the bare/orphan markets the
-  // board also hides. Never charge for a null "signal".
-  const open = markets.filter((m) => m.outcome === 0 && meta[m.id]?.ticker);
+  // Only sell markets that are genuinely OPEN: unresolved (outcome 0), still
+  // before close, AND labeled (a known ticker). A closed-but-unresolved market
+  // (outcome 0 in the gap before the resolver settles it) is NOT a live signal —
+  // never charge for an expired or null "signal".
+  const nowSec = Math.floor(Date.now() / 1000);
+  const open = markets.filter((m) => m.outcome === 0 && m.closesAt > nowSec && meta[m.id]?.ticker);
   return open.map((m) => {
     const md = meta[m.id];
     const long = m.longPool;

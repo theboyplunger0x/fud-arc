@@ -187,6 +187,7 @@ export default function Home() {
         <div className="mt-5 flex flex-wrap items-center gap-1.5 text-[12px] font-bold">
           <a href="#markets" className={`px-3 py-1.5 rounded-lg transition ${dk ? "text-white/55 hover:text-white hover:bg-white/[0.06]" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"}`}>Markets</a>
           <a href="#x402" className={`px-3 py-1.5 rounded-lg transition ${dk ? "text-emerald-300 hover:bg-emerald-500/[0.12]" : "text-emerald-700 hover:bg-emerald-50"}`}>x402</a>
+          <a href="#genlayer" className={`px-3 py-1.5 rounded-lg transition ${dk ? "text-emerald-300 hover:bg-emerald-500/[0.12]" : "text-emerald-700 hover:bg-emerald-50"}`}>GenLayer</a>
           <a href="#how-it-works" className={`px-3 py-1.5 rounded-lg transition ${dk ? "text-white/55 hover:text-white hover:bg-white/[0.06]" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"}`}>How it works</a>
           <a href="#founder" className={`px-3 py-1.5 rounded-lg transition ${dk ? "text-white/55 hover:text-white hover:bg-white/[0.06]" : "text-gray-500 hover:text-gray-900 hover:bg-gray-100"}`}>Founder</a>
         </div>
@@ -299,6 +300,45 @@ export default function Home() {
                 className={`text-[11px] font-semibold ${dk ? "text-white/45 hover:text-white/70" : "text-gray-400 hover:text-gray-600"}`}
               >
                 ✓ see a real settle on arcscan ↗
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* GenLayer — trustless settlement: a consensus Intelligent Contract decides the winner, not a single feed */}
+        <h2 id="genlayer" className={`mt-12 scroll-mt-20 ${label}`}>Settlement · GenLayer</h2>
+        <div className={`mt-4 rounded-2xl border p-5 sm:p-6 ${dk ? "border-emerald-500/25 bg-emerald-500/[0.05]" : "border-emerald-200 bg-emerald-50/70"}`}>
+          <div className="flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[18px]">🧠</span>
+                <h3 className="text-[16px] sm:text-[20px] font-black tracking-tight">
+                  Resolved by <span className="text-emerald-400">GenLayer</span> — not a single oracle.
+                </h3>
+              </div>
+              <p className={`mt-2 text-[12px] sm:text-[13px] leading-relaxed ${dk ? "text-white/60" : "text-gray-600"}`}>
+                At settlement, FUD spins up a GenLayer <span className="font-bold">Intelligent Contract</span> that
+                agrees a price from live sources — <span className="font-bold">Pyth + Coinbase + CoinGecko</span> for
+                crypto — with <span className="font-bold">Pyth on-chain on Arc</span> as the fallback. The agreed
+                price decides the winning side.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 lg:w-[300px] shrink-0">
+              <div className={`inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border px-3.5 py-2.5 font-mono text-[12px] ${dk ? "border-white/10 bg-black/30 text-white/70" : "border-gray-200 bg-white text-gray-600"}`}>
+                <span>Pyth</span>
+                <span className="opacity-40">+</span>
+                <span>Coinbase</span>
+                <span className="opacity-40">+</span>
+                <span>CoinGecko</span>
+                <span className={`text-[10px] font-black uppercase tracking-wider ${dk ? "text-emerald-300" : "text-emerald-700"}`}>consensus</span>
+              </div>
+              <a
+                href="https://github.com/theboyplunger0x/fud-arc/blob/main/bot/src/intelligent-oracles/price_oracle_v2.py"
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`text-[11px] font-semibold ${dk ? "text-white/45 hover:text-white/70" : "text-gray-400 hover:text-gray-600"}`}
+              >
+                see the Intelligent Contract ↗
               </a>
             </div>
           </div>
