@@ -35,6 +35,21 @@ interface MarketRec extends MetaEntry {
   payoutWallet?: string;
 }
 
+interface ResolutionProof {
+  marketId: number;
+  ticker: string;
+  anchor: number;
+  price: number;
+  outcome: "long" | "short" | "draw";
+  via: string;
+  sources?: string[];
+  confidence?: string;
+  oracleAddress?: string;
+  genlayerResolveHash?: string;
+  arcResolveTx: string;
+  resolvedAt: number;
+}
+
 const RESCUE_MARKETS: Record<number, MarketRec> = {
   5: {
     ticker: "BTC", kind: "crypto", side: "long", timeframe: "24h",
@@ -133,32 +148,39 @@ const STORE = join(DATA_DIR, "store.json");
 interface StoreShape {
   markets?: Record<string, MarketRec>;
   wallets?: Record<string, string>;
+  resolutions?: ResolutionProof[];
 }
 
-function loadStore(): { registry: Map<number, MarketRec>; userWallets: Map<number, string> } {
+function loadStore(): { registry: Map<number, MarketRec>; userWallets: Map<number, string>; resolutions: ResolutionProof[] } {
   try {
-    if (!existsSync(STORE)) return { registry: new Map(), userWallets: new Map() };
+    if (!existsSync(STORE)) return { registry: new Map(), userWallets: new Map(), resolutions: [] };
     const raw = JSON.parse(readFileSync(STORE, "utf8")) as StoreShape;
     return {
       registry: new Map(Object.entries(raw.markets ?? {}).map(([k, v]) => [Number(k), v])),
       userWallets: new Map(Object.entries(raw.wallets ?? {}).map(([k, v]) => [Number(k), v])),
+      resolutions: Array.isArray(raw.resolutions) ? raw.resolutions : [],
     };
   } catch (e) {
     console.error("[store] load failed:", (e as Error)?.message);
-    return { registry: new Map(), userWallets: new Map() };
+    return { registry: new Map(), userWallets: new Map(), resolutions: [] };
   }
 }
 
 function persist(): void {
   try {
     mkdirSync(DATA_DIR, { recursive: true });
-    writeFileSync(STORE, JSON.stringify({ markets: Object.fromEntries(registry), wallets: Object.fromEntries(userWallets) }), { mode: 0o600 });
+    writeFileSync(
+      STORE,
+      JSON.stringify({ markets: Object.fromEntries(registry), wallets: Object.fromEntries(userWallets), resolutions }),
+      { mode: 0o600 },
+    );
   } catch (e) {
     console.error("[store] save failed:", (e as Error)?.message);
   }
 }
 
-const { registry, userWallets } = loadStore();
+const { registry, userWallets, resolutions } = loadStore();
+const MAX_RESOLUTION_PROOFS = 50;
 
 const MAX_TAKE_TEXT = 80;
 const MAX_TAKES_PER_MARKET = 25;
@@ -194,11 +216,65 @@ function cleanTakeText(text: unknown): string {
   return String(text ?? "").replace(/\s+/g, " ").trim().slice(0, MAX_TAKE_TEXT);
 }
 
+function cleanString(v: unknown, max: number): string | undefined {
+  const s = String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+  return s || undefined;
+}
+
+function cleanResolutionProof(v: unknown): ResolutionProof | null {
+  const x = v as Partial<ResolutionProof> | null;
+  if (!x || typeof x !== "object") return null;
+  const marketId = Number(x.marketId);
+  const anchor = Number(x.anchor);
+  const price = Number(x.price);
+  const resolvedAt = Number(x.resolvedAt);
+  const outcome = x.outcome === "long" || x.outcome === "short" || x.outcome === "draw" ? x.outcome : null;
+  const ticker = cleanString(x.ticker, 24);
+  const via = cleanString(x.via, 40);
+  const arcResolveTx = cleanString(x.arcResolveTx, 66);
+  if (!Number.isInteger(marketId) || marketId <= 0 || !Number.isFinite(anchor) || anchor < 0) return null;
+  if (!Number.isFinite(price) || price <= 0 || !Number.isInteger(resolvedAt) || resolvedAt <= 0) return null;
+  if (!outcome || !ticker || !via || !arcResolveTx || !/^0x[a-fA-F0-9]{64}$/.test(arcResolveTx)) return null;
+  const sources = Array.isArray(x.sources)
+    ? x.sources.map((s) => cleanString(s, 32)).filter((s): s is string => !!s).slice(0, 8)
+    : undefined;
+  const confidence = cleanString(x.confidence, 24);
+  const oracleAddress = cleanString(x.oracleAddress, 42);
+  const genlayerResolveHash = cleanString(x.genlayerResolveHash, 66);
+  if (oracleAddress && !/^0x[a-fA-F0-9]{40}$/.test(oracleAddress)) return null;
+  if (genlayerResolveHash && !/^0x[a-fA-F0-9]{64}$/.test(genlayerResolveHash)) return null;
+  return {
+    marketId,
+    ticker,
+    anchor,
+    price,
+    outcome,
+    via,
+    sources,
+    confidence,
+    oracleAddress,
+    genlayerResolveHash,
+    arcResolveTx,
+    resolvedAt,
+  };
+}
+
 function publicMetaEntries(): Map<number, MarketRec> {
   const out = new Map<number, MarketRec>();
   for (const [rawId, rec] of Object.entries(RESCUE_MARKETS)) out.set(Number(rawId), rec);
   for (const [id, rec] of registry) out.set(id, rec);
   return out;
+}
+
+function outcomeName(outcome: Outcome): ResolutionProof["outcome"] {
+  return outcome === 1 ? "long" : outcome === 2 ? "short" : "draw";
+}
+
+function recordResolution(proof: ResolutionProof): void {
+  const withoutDuplicate = resolutions.filter((r) => r.marketId !== proof.marketId);
+  resolutions.length = 0;
+  resolutions.push(proof, ...withoutDuplicate.slice(0, MAX_RESOLUTION_PROOFS - 1));
+  persist();
 }
 
 const U = (n: number) => BigInt(Math.round(n * 1e6)); // USDC 6-dp units
@@ -500,6 +576,30 @@ const httpServer = createServer(async (req, res) => {
       };
     }
     res.end(JSON.stringify({ markets: out }));
+  } else if (path === "/arc/resolutions" && req.method === "GET") {
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ resolutions }));
+  } else if (path === "/arc/resolutions" && req.method === "POST") {
+    res.setHeader("Content-Type", "application/json");
+    const token = process.env.RESOLUTION_WRITE_TOKEN;
+    if (!token || req.headers["x-resolution-token"] !== token) {
+      res.statusCode = 404;
+      res.end(JSON.stringify({ error: "not found" }));
+      return;
+    }
+    try {
+      const proof = cleanResolutionProof(await readJson(req, 8192));
+      if (!proof) {
+        res.statusCode = 400;
+        res.end(JSON.stringify({ error: "invalid resolution proof" }));
+        return;
+      }
+      recordResolution(proof);
+      res.end(JSON.stringify({ ok: true, resolution: proof }));
+    } catch (e) {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ error: (e as Error).message }));
+    }
   } else if (path === "/arc/takes" && req.method === "POST") {
     res.setHeader("Content-Type", "application/json");
     try {
@@ -533,7 +633,7 @@ const httpServer = createServer(async (req, res) => {
     }
   } else if ((path === "/" || path === "/health") && req.method === "GET") {
     res.end("fud-arc bot ok");
-  } else if (path === "/arc/markets-meta" || path === "/arc/takes" || path === "/" || path === "/health") {
+  } else if (path === "/arc/markets-meta" || path === "/arc/resolutions" || path === "/arc/takes" || path === "/" || path === "/health") {
     res.statusCode = 405;
     res.end("method not allowed");
   } else {
@@ -560,6 +660,7 @@ const OPENER_CUT_BPS = 2000n; // contract constant: opener earns 20% of the fee
 const BPS = 10000n;
 const MAX_CUT_UNITS = BigInt(MAX_AMOUNT) * 1_000_000n; // sanity cap on any payout
 let tickRunning = false;
+const warnedOrphans = new Set<number>();
 
 async function resolverCandidates(now: number): Promise<Map<number, MarketRec>> {
   const out = new Map(registry);
@@ -572,7 +673,8 @@ async function resolverCandidates(now: number): Promise<Map<number, MarketRec>> 
   for (let id = 1; id < next; id++) {
     if (out.has(id)) continue;
     const m = await readMarket(BigInt(id)).catch(() => null);
-    if (m && m.outcome === 0 && now >= m.closesAt) {
+    if (m && m.outcome === 0 && now >= m.closesAt && !warnedOrphans.has(id)) {
+      warnedOrphans.add(id);
       console.warn(`[resolve] #${id} is closed/unresolved but has no metadata; leaving it unresolved until a rescue entry is added.`);
     }
   }
@@ -596,7 +698,21 @@ async function resolverTick(): Promise<void> {
           const price = rp.price;
           // anchor 0 (price unavailable at open) → draw; otherwise by the move vs entry.
           const outcome: Outcome = rec.anchor > 0 ? (price > rec.anchor ? 1 : price < rec.anchor ? 2 : 3) : 3;
-          await resolveMarket(BigInt(id), outcome);
+          const arcResolveTx = await resolveMarket(BigInt(id), outcome);
+          recordResolution({
+            marketId: id,
+            ticker: rec.ticker,
+            anchor: rec.anchor,
+            price,
+            outcome: outcomeName(outcome),
+            via: rp.via,
+            sources: rp.sources,
+            confidence: rp.confidence,
+            oracleAddress: rp.oracleAddress,
+            genlayerResolveHash: rp.resolveHash,
+            arcResolveTx,
+            resolvedAt: Math.floor(Date.now() / 1000),
+          });
           console.log(`[resolve] #${id} ${rec.ticker} → ${outcome === 1 ? "LONG" : outcome === 2 ? "SHORT" : "DRAW"} via ${rp.via} (entry ${rec.anchor} → ${price})`);
         }
         // Mark resolved + persist BEFORE paying — guarantees no double-pay across a
